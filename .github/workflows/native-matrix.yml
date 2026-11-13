@@ -1,0 +1,137 @@
+# Builds one native executable for the Quarkus Native Matrix extension (quarkus-native-matrix).
+#
+# Commit this file as .github/workflows/native-matrix.yml on the branch used by the github-actions runner
+# (the default branch unless the 'ref' option is set). The extension dispatches it once per target and
+# downloads the produced executable; you never need to trigger it by hand.
+#
+# native-matrix-workflow-version: 2
+name: native-matrix
+run-name: "native-matrix ${{ inputs.target }} ${{ inputs.correlation_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      correlation_id:
+        description: Identifier used by the extension to find this run
+        required: true
+        type: string
+      target:
+        description: Matrix target name
+        required: true
+        type: string
+      runs_on:
+        description: Runner label
+        required: true
+        type: string
+      sources_url:
+        description: API URL of the zipped native sources or project (draft release asset)
+        required: true
+        type: string
+      java_version:
+        description: Java version of the GraalVM distribution
+        required: true
+        type: string
+      distribution:
+        description: GraalVM distribution (graalvm, graalvm-community, mandrel, liberica)
+        required: true
+        type: string
+      retention_days:
+        description: Retention of the artifact holding the executable
+        required: false
+        default: "1"
+        type: string
+      mode:
+        description: "sources: run native-image on the native sources; full: build the project"
+        required: false
+        default: sources
+        type: string
+      command:
+        description: Build script of the full mode (writes the executable to output/)
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write   # read the draft release holding the sources
+  actions: read
+
+jobs:
+  native-image:
+    name: native-image ${{ inputs.target }}
+    runs-on: ${{ inputs.runs_on }}
+    timeout-minutes: 120
+    steps:
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: ${{ inputs.java_version }}
+          distribution: ${{ inputs.distribution }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+
+      - name: Download sources
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCES_URL: ${{ inputs.sources_url }}
+        run: |
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" \
+            "$SOURCES_URL" -o sources.zip
+          mkdir work
+          cd work && jar xf ../sources.zip
+
+      - name: native-image (Linux, macOS)
+        if: inputs.mode != 'full' && runner.os != 'Windows'
+        shell: bash
+        working-directory: work
+        run: |
+          mkdir -p output
+          native-image @native-image.matrix.args
+
+      - name: native-image (Windows)
+        if: inputs.mode != 'full' && runner.os == 'Windows'
+        shell: cmd
+        working-directory: work
+        run: |
+          if not exist output mkdir output
+          native-image.cmd @native-image.matrix.args
+
+      - name: Build the project (Linux, macOS)
+        if: inputs.mode == 'full' && runner.os != 'Windows'
+        shell: bash
+        working-directory: work
+        env:
+          NM_COMMAND: ${{ inputs.command }}
+        run: sh -c "$NM_COMMAND"
+
+      - name: Build the project (Windows)
+        if: inputs.mode == 'full' && runner.os == 'Windows'
+        shell: cmd
+        working-directory: work
+        env:
+          NM_COMMAND: ${{ inputs.command }}
+        run: "%NM_COMMAND%"
+
+      - name: Record the GraalVM version (Linux, macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: native-image --version > work/output/native-image.version
+
+      - name: Record the GraalVM version (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: native-image.cmd --version > work\output\native-image.version
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ inputs.correlation_id }}
+          path: work/output/
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention_days }}
