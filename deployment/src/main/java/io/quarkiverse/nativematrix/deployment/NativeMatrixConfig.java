@@ -95,7 +95,156 @@ public interface NativeMatrixConfig {
     @WithDefault("false")
     boolean quiet();
 
+    /**
+     * Turns a regular package build into a matrix build, without passing {@code quarkus.native.enabled=true} and
+     * {@code quarkus.native.sources-only=true} by hand: {@code mvn package -Dnative-matrix} or
+     * {@code -Dquarkus.native-matrix.build=true}. Explicit values of these two properties win.
+     */
+    @WithDefault("false")
+    boolean build();
+
+    /**
+     * How targets are built by default: {@code sources} runs only {@code native-image} on the builders, {@code full}
+     * builds the whole project there. Targets can override it.
+     */
+    @WithDefault("sources")
+    Mode mode();
+
+    /**
+     * What to do when a {@code sources} target would receive jars selected for the build machine platform (JavaFX,
+     * LWJGL, Netty native transports... picked by OS-activated Maven profiles or platform classifiers).
+     */
+    @WithDefault("fail")
+    Check platformDependencyCheck();
+
+    /**
+     * Jar file names (globs with {@code *}) ignored by the platform dependency check, e.g.
+     * {@code *netty-transport-native-epoll*}.
+     */
+    Optional<List<String>> ignoredPlatformDependencies();
+
+    /**
+     * What to do when a builder runs another GraalVM {@code major.minor} version than the one the native sources were
+     * generated for.
+     */
+    @WithDefault("warn")
+    Check graalvmVersionCheck();
+
+    /**
+     * Reuse the executables of the previous matrix build for the targets whose inputs (native sources, platform,
+     * runner, mode, options) did not change and whose executable is still in the output directory. Combined with a
+     * build that does not {@code clean}, only the failed or changed targets are rebuilt.
+     */
+    @WithDefault("true")
+    boolean reuseUnchanged();
+
+    /**
+     * Configuration of {@code mode=full}.
+     */
+    FullBuildConfig fullBuild();
+
+    /**
+     * Packaging of the executables for distribution.
+     */
+    PackageConfig packaging();
+
+    enum Mode {
+        /** Run only {@code native-image} on the builders. */
+        SOURCES,
+        /** Build the whole project on the builders. */
+        FULL
+    }
+
+    enum Check {
+        /** Fail the target. */
+        FAIL,
+        /** Log a warning. */
+        WARN,
+        /** Do not check. */
+        OFF
+    }
+
+    interface FullBuildConfig {
+
+        /**
+         * Root of the project shipped to the builders. Defaults to the directory holding {@code settings.gradle}, else
+         * the top-most directory of the chain of {@code pom.xml} files above the Quarkus module.
+         */
+        Optional<String> projectDirectory();
+
+        /**
+         * Build tool of the project; detected from the project root by default.
+         */
+        Optional<BuildTool> buildTool();
+
+        /**
+         * Extra arguments of the build command, e.g. {@code -Pproduction,-Dmy.property=value}.
+         */
+        Optional<List<String>> args();
+
+        /**
+         * Whether to skip the tests in the remote builds.
+         */
+        @WithDefault("true")
+        boolean skipTests();
+
+        /**
+         * Replaces the build command used on Linux and macOS builders (run with {@code sh} from the project root; it
+         * must produce the executable in the build output directory of the module). Requires
+         * {@code windows-command} too.
+         */
+        Optional<String> posixCommand();
+
+        /**
+         * Replaces the build command used on Windows builders (run with {@code cmd.exe}).
+         */
+        Optional<String> windowsCommand();
+
+        /**
+         * Directory names never shipped to the builders.
+         */
+        @WithDefault("target,build,.git,.idea,.vscode,.gradle,node_modules,.quarkus")
+        List<String> excludedDirectories();
+
+        enum BuildTool {
+            /** Maven ({@code mvnw} when present). */
+            MAVEN,
+            /** Gradle ({@code gradlew} when present). */
+            GRADLE
+        }
+    }
+
+    interface PackageConfig {
+
+        /**
+         * Also produce one archive per target in {@code <output-directory>/dist}: a {@code .tar.gz} keeping the
+         * executable permission for Linux and macOS, a {@code .zip} for Windows. Archives are named
+         * {@code <name>-<platform>} with JReleaser platform names ({@code linux-x86_64}, {@code osx-aarch_64},
+         * {@code windows-x86_64}...).
+         */
+        @WithDefault("false")
+        boolean archives();
+
+        /**
+         * Also write {@code <output-directory>/jreleaser.yml}, a JReleaser configuration declaring the archives as a
+         * {@code BINARY} distribution (implies {@code archives}).
+         */
+        @WithDefault("false")
+        boolean jreleaser();
+
+        /**
+         * Distribution name used in archive names and in the JReleaser configuration. Defaults to the executable name
+         * without the {@code -runner} suffix.
+         */
+        Optional<String> name();
+    }
+
     interface TargetConfig {
+
+        /**
+         * How this target is built; defaults to {@code quarkus.native-matrix.mode}.
+         */
+        Optional<Mode> mode();
 
         /**
          * Whether this target is built.

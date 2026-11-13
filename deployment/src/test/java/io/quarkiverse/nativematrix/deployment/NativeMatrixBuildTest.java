@@ -32,8 +32,10 @@ class NativeMatrixBuildTest {
                             "META-INF/services/" + NativeBuildRunner.class.getName()))
             .setApplicationName("matrix-app")
             .setApplicationVersion("1.0")
-            .overrideConfigKey("quarkus.native.enabled", "true")
-            .overrideConfigKey("quarkus.native.sources-only", "true")
+            // the one-command switch: enables quarkus.native.enabled and quarkus.native.sources-only
+            .overrideConfigKey("quarkus.native-matrix.build", "true")
+            .overrideConfigKey("quarkus.native-matrix.packaging.jreleaser", "true")
+            .overrideConfigKey("quarkus.native-matrix.packaging.name", "matrix")
             // the target named after the build machine platform defaults to the local runner
             .overrideConfigKey("quarkus.native-matrix.target." + HOST + ".options.command",
                     String.join(",", TestSupport.fakeNativeImageCommand()))
@@ -61,6 +63,12 @@ class NativeMatrixBuildTest {
         String manifest = Files.readString(matrix.resolve("native-matrix.json"));
         assertThat(manifest).contains("\"name\" : \"raspberry\"", "\"runner\" : \"echo\"", "\"status\" : \"success\"",
                 "\"name\" : \"" + HOST + "\"", "\"runner\" : \"local\"");
+        // the local builder reported its GraalVM version (the fake prints Mandrel 25.0.1)
+        assertThat(manifest).contains("\"graalvm\" : \"25.0\"", "\"fingerprint\"");
+        // packaging for distribution
+        assertThat(matrix.resolve("dist/matrix-linux-aarch_64.tar.gz")).exists();
+        assertThat(matrix.resolve("jreleaser.yml")).content().contains("matrix:", "type: BINARY",
+                "native-matrix/dist/matrix-linux-aarch_64.tar.gz", "platform: linux-aarch_64");
         // the native sources produced by Quarkus are left untouched
         assertThat(results.getBuildDir().resolve("native-sources/native-image.args")).exists();
         assertThat(results.getBuildDir().resolve("native-sources/output")).doesNotExist();

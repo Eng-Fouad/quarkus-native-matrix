@@ -52,6 +52,7 @@ class GitHubActionsRunnerTest {
     private final AtomicReference<byte[]> uploaded = new AtomicReference<>();
     private final AtomicInteger runPolls = new AtomicInteger();
     private volatile boolean workflowExists = true;
+    private volatile boolean outdatedWorkflow = false;
     private volatile String conclusion = "success";
     private volatile String blobAuthorization;
 
@@ -90,6 +91,10 @@ class GitHubActionsRunnerTest {
                 send(ex, 201, "{\"url\":\"" + base + repo + "/releases/assets/7\"}");
             }
             case "POST " + repo + "/actions/workflows/native-matrix.yml/dispatches" -> {
+                if (outdatedWorkflow) {
+                    send(ex, 422, "{\"message\":\"Unexpected inputs provided: [\\\"mode\\\", \\\"command\\\"]\"}");
+                    return;
+                }
                 dispatched.set(JSON.readTree(body));
                 send(ex, 204, "");
             }
@@ -114,7 +119,8 @@ class GitHubActionsRunnerTest {
                 blobAuthorization = ex.getRequestHeaders().getFirst("Authorization");
                 ex.sendResponseHeaders(200, 0);
                 try (OutputStream os = ex.getResponseBody()) {
-                    os.write(zip(Map.of("app-runner", "github executable", "libawt.so", "lib")));
+                    os.write(zip(Map.of("app-runner", "github executable", "libawt.so", "lib",
+                            "native-image.version", TestSupport.MANDREL_VERSION_OUTPUT)));
                 }
             }
             case "DELETE " + repo + "/releases/42" -> send(ex, 204, "");
@@ -166,12 +172,16 @@ class GitHubActionsRunnerTest {
     @Test
     void dispatchesTheWorkflowAndDownloadsTheExecutable() throws Exception {
         NativeBuildRequest request = request();
-        var result = new GitHubActionsRunner().build(request,
-                TestSupport.context(Files.createDirectories(tmp.resolve("work"))));
+        var context = TestSupport.context(Files.createDirectories(tmp.resolve("work")));
+        var result = new GitHubActionsRunner().build(request, context);
 
         assertThat(result.executable()).hasContent("github executable");
         assertThat(result.additionalFiles()).extracting(p -> p.getFileName().toString()).containsExactly("libawt.so");
         assertThat(result.metadata()).containsEntry("run", "https://github.com/acme/app/actions/runs/9");
+        // the version recorded by the workflow is reported, then removed from the outputs
+        assertThat(context.versions()).containsExactly(TestSupport.MANDREL_VERSION_OUTPUT);
+        assertThat(request.outputDirectory().resolve("native-image.version")).doesNotExist();
+        assertThat(dispatched.get().path("inputs").path("mode").asText()).isEqualTo("sources");
 
         JsonNode d = dispatched.get();
         assertThat(d.path("ref").asText()).isEqualTo("trunk");
@@ -214,6 +224,40 @@ class GitHubActionsRunnerTest {
         assertThat(tmp.resolve("out/github/native-matrix.yml")).content().contains("workflow_dispatch",
                 "native-image @native-image.matrix.args");
         assertThat(calls).noneMatch(c -> c.contains("releases"));
+    }
+
+    @Test
+    void shipsTheProjectInFullMode() throws Exception {
+        Path project = Files.createDirectories(tmp.resolve("project"));
+        Files.writeString(project.resolve("pom.xml"), "<project/>");
+        Files.createDirectories(project.resolve("target"));
+        Files.writeString(project.resolve("target/big.jar"), "not shipped");
+        NativeBuildRequest request = request().toBuilder()
+                .mode(io.quarkiverse.nativematrix.spi.BuildMode.FULL)
+                .fullBuild(new io.quarkiverse.nativematrix.spi.FullBuild(project, "sh ./mvnw package",
+                        "call mvnw.cmd package", "target", java.util.Set.of("target")))
+                .build();
+        new GitHubActionsRunner().build(request, TestSupport.context(Files.createDirectories(tmp.resolve("work"))));
+
+        JsonNode inputs = dispatched.get().path("inputs");
+        assertThat(inputs.path("mode").asText()).isEqualTo("full");
+        assertThat(inputs.path("command").asText()).startsWith("sh ./mvnw package && mkdir -p output")
+                .contains("cp 'target/app-runner' output/");
+        Files.write(tmp.resolve("uploaded.zip"), uploaded.get());
+        assertThat(io.quarkiverse.nativematrix.spi.support.Archives.unzip(tmp.resolve("uploaded.zip"),
+                tmp.resolve("unzipped"))).extracting(p -> p.getFileName().toString()).containsExactly("pom.xml");
+        assertThat(calls).contains("POST /uploads/repos/acme/app/releases/42/assets");
+    }
+
+    @Test
+    void explainsHowToUpdateAnOutdatedWorkflow() throws Exception {
+        outdatedWorkflow = true;
+        NativeBuildRequest request = request();
+        assertThatThrownBy(() -> new GitHubActionsRunner().build(request,
+                TestSupport.context(Files.createDirectories(tmp.resolve("work")))))
+                .hasMessageContaining("workflow of acme/app is outdated");
+        assertThat(tmp.resolve("out/github/native-matrix.yml")).content().contains("native-matrix-workflow-version: 2");
+        assertThat(calls).contains("DELETE /repos/acme/app/releases/42");
     }
 
     @Test

@@ -1,5 +1,6 @@
 package io.quarkiverse.nativematrix.deployment.runners;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.Map;
 import io.quarkiverse.nativematrix.deployment.orchestrator.NativeMatrixOrchestrator;
 import io.quarkiverse.nativematrix.spi.BuildContext;
 import io.quarkiverse.nativematrix.spi.BuildLog;
+import io.quarkiverse.nativematrix.spi.BuildMode;
 import io.quarkiverse.nativematrix.spi.NativeBuildException;
 import io.quarkiverse.nativematrix.spi.NativeBuildRequest;
 import io.quarkiverse.nativematrix.spi.NativeBuildResult;
@@ -34,10 +36,18 @@ import io.quarkiverse.nativematrix.spi.support.Processes;
  * <li>{@code pull}: {@code missing} (default), {@code always} or {@code never}</li>
  * <li>{@code platform}: container platform; defaults to the target platform, e.g. {@code linux/arm64}</li>
  * <li>{@code entrypoint}: defaults to {@code native-image}</li>
- * <li>{@code user}: user the build runs as, e.g. {@code root} if the image user cannot write to {@code /project}</li>
+ * <li>{@code user}: user the build runs as; {@code root} by default, since the files copied into the container are owned
+ * by root</li>
  * <li>{@code memory}, {@code cpus}: resource limits</li>
  * <li>{@code create-args}: comma separated extra arguments of {@code docker create}</li>
+ * <li>{@code check-version} (true): run {@code native-image --version} in the image before building</li>
  * </ul>
+ * <p>
+ * In {@code mode=full}, the project is copied into the container and built there with its own build tool, as
+ * {@code root} unless {@code user} is set; {@code shell} ({@code /bin/sh}) runs the build script. The image needs a
+ * JDK able to build native executables (the Mandrel builder images qualify) and either the build tool or its wrapper
+ * ({@code mvnw}, {@code gradlew}). Downloaded dependencies are kept in the {@code quarkus-native-matrix-m2} and
+ * {@code quarkus-native-matrix-gradle} volumes unless {@code cache-volumes=false}.
  */
 public class DockerRunner implements NativeBuildRunner {
 
@@ -61,6 +71,11 @@ public class DockerRunner implements NativeBuildRunner {
     }
 
     @Override
+    public boolean supports(BuildMode mode) {
+        return true;
+    }
+
+    @Override
     public void validate(NativeBuildRequest request) {
         String runtime = runtime(request.options());
         if (Processes.findExecutable(runtime, List.of()).isEmpty() && !Path.of(runtime).isAbsolute()) {
@@ -80,27 +95,44 @@ public class DockerRunner implements NativeBuildRunner {
         List<String> base = baseCommand(options);
         String image = image(request);
 
-        Path argFile = ArgFile.write(context.workDirectory().resolve(ArgFile.DEFAULT_NAME), request.nativeImageArgs());
+        boolean full = request.mode() == BuildMode.FULL;
         boolean created = false;
         try {
             if (options.get("pull", "missing").equals("always")) {
                 log.info("Pulling " + image);
                 run(concat(base, "pull", "--platform", platform(request), image), log, "pull " + image);
             }
+            reportVersion(base, request, image, context);
+
             log.info("Creating builder container from " + image);
             run(createCommand(base, name, request, image), log, "create the builder container");
             created = true;
 
-            log.info("Copying the native sources into the container");
-            run(concat(base, "cp", request.nativeSourcesDirectory().toAbsolutePath() + "/.", name + ":" + PROJECT_DIR),
-                    log, "copy the native sources");
-            run(concat(base, "cp", argFile.toAbsolutePath().toString(), name + ":" + PROJECT_DIR + "/" + ArgFile.DEFAULT_NAME),
-                    log, "copy the argument file");
+            if (full) {
+                log.info("Copying the project into the container");
+                Path project = request.requireFullBuild().stage(context.workDirectory().resolve("project"),
+                        request.platform());
+                run(concat(base, "cp", project.toAbsolutePath() + "/.", name + ":" + PROJECT_DIR), log,
+                        "copy the project");
+            } else {
+                log.info("Copying the native sources into the container");
+                Path argFile = ArgFile.write(context.workDirectory().resolve(ArgFile.DEFAULT_NAME),
+                        request.nativeImageArgs());
+                run(concat(base, "cp", request.nativeSourcesDirectory().toAbsolutePath() + "/.", name + ":" + PROJECT_DIR),
+                        log, "copy the native sources");
+                run(concat(base, "cp", argFile.toAbsolutePath().toString(),
+                        name + ":" + PROJECT_DIR + "/" + ArgFile.DEFAULT_NAME), log, "copy the argument file");
+                // native-image does not create the directory of its -o path
+                Path emptyOutput = Files.createDirectories(
+                        context.workDirectory().resolve("empty").resolve(NativeBuildRequest.DEFAULT_OUTPUT_DIR));
+                run(concat(base, "cp", emptyOutput.toAbsolutePath().toString(), name + ":" + PROJECT_DIR + "/"),
+                        log, "create the output directory");
+            }
 
             Processes.Result result = Processes.run(concat(base, "start", "--attach", name), null, Map.of(), log);
             if (!result.succeeded()) {
-                throw new NativeBuildException("native-image failed in the builder container (exit code "
-                        + result.exitCode() + ")");
+                throw new NativeBuildException((full ? "The project build" : "native-image")
+                        + " failed in the builder container (exit code " + result.exitCode() + ")");
             }
 
             run(concat(base, "cp", name + ":" + PROJECT_DIR + "/" + NativeBuildRequest.DEFAULT_OUTPUT_DIR + "/.",
@@ -115,20 +147,48 @@ public class DockerRunner implements NativeBuildRunner {
 
     List<String> createCommand(List<String> base, String name, NativeBuildRequest request, String image) {
         RunnerOptions options = request.options();
+        boolean full = request.mode() == BuildMode.FULL;
         List<String> cmd = new ArrayList<>(base);
         cmd.addAll(List.of("create", "--name", name,
                 "--platform", platform(request),
                 "--pull", options.get("pull", "missing"),
                 "-v", name + ":" + PROJECT_DIR,
                 "-w", PROJECT_DIR,
-                "--entrypoint", options.get("entrypoint", "native-image")));
-        options.get("user").ifPresent(u -> cmd.addAll(List.of("--user", u)));
+                "--entrypoint", full ? options.get("shell", "/bin/sh") : options.get("entrypoint", "native-image")));
+        // builds run as root by default: files copied with docker cp (and the cache volumes) are owned by root, so the
+        // non-root user of the Quarkus builder images could not write the output; the container is thrown away anyway
+        cmd.addAll(List.of("--user", options.get("user", "root")));
+        if (full && options.getBoolean("cache-volumes", true)) {
+            // keep downloaded dependencies between builds
+            cmd.addAll(List.of("-v", "quarkus-native-matrix-m2:/root/.m2", "-v", "quarkus-native-matrix-gradle:/root/.gradle"));
+        }
         options.get("memory").ifPresent(m -> cmd.addAll(List.of("--memory", m)));
         options.get("cpus").ifPresent(c -> cmd.addAll(List.of("--cpus", c)));
         cmd.addAll(options.getList("create-args"));
         cmd.add(image);
-        cmd.add("@" + ArgFile.DEFAULT_NAME);
+        if (full) {
+            cmd.add("-c");
+            cmd.add(request.requireFullBuild().script(request.platform(), request.outputName()));
+        } else {
+            cmd.add("@" + ArgFile.DEFAULT_NAME);
+        }
         return cmd;
+    }
+
+    private void reportVersion(List<String> base, NativeBuildRequest request, String image, BuildContext context)
+            throws Exception {
+        if (!request.options().getBoolean("check-version", true)) {
+            return;
+        }
+        List<String> cmd = concat(base, "run", "--rm", "--platform", platform(request), "--pull",
+                request.options().get("pull", "missing").equals("never") ? "never" : "missing",
+                "--entrypoint", request.options().get("entrypoint", "native-image"), image, "--version");
+        Processes.Result r = Processes.capture(cmd, null);
+        if (r.succeeded()) {
+            context.reportNativeImageVersion(r.outputAsString());
+        } else {
+            context.log().warn("Could not run native-image --version in " + image + ": " + r.outputAsString());
+        }
     }
 
     static List<String> baseCommand(RunnerOptions options) {

@@ -44,22 +44,50 @@ public final class TestSupport {
         }
     }
 
-    public static BuildContext context(Path workDir) {
-        return new BuildContext() {
-            @Override
-            public BuildLog log() {
-                return BuildLog.console("test");
-            }
-
-            @Override
-            public Path workDirectory() {
-                return workDir;
-            }
-
-            @Override
-            public boolean isCancelled() {
-                return Thread.currentThread().isInterrupted();
-            }
-        };
+    public static RecordingContext context(Path workDir) {
+        return new RecordingContext(workDir);
     }
+
+    /**
+     * A build context recording the native-image versions reported by runners.
+     */
+    public static final class RecordingContext implements BuildContext {
+        private final Path workDir;
+        private final List<String> versions = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        RecordingContext(Path workDir) {
+            this.workDir = workDir;
+        }
+
+        public List<String> versions() {
+            return versions;
+        }
+
+        @Override
+        public BuildLog log() {
+            return BuildLog.console("test");
+        }
+
+        @Override
+        public Path workDirectory() {
+            return workDir;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return Thread.currentThread().isInterrupted();
+        }
+
+        @Override
+        public void reportNativeImageVersion(String versionOutput) {
+            versions.add(versionOutput);
+        }
+    }
+
+    /** The output of {@code native-image --version} of Mandrel 25.0.1. */
+    public static final String MANDREL_VERSION_OUTPUT = """
+            native-image 25.0.1 2025-10-21
+            OpenJDK Runtime Environment Mandrel-25.0.1.0-Final (build 25.0.1+8)
+            OpenJDK 64-Bit Server VM Mandrel-25.0.1.0-Final (build 25.0.1+8, mixed mode)
+            """;
 }

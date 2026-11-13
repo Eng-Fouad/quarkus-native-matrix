@@ -24,6 +24,18 @@ public interface BuildContext {
     boolean isCancelled();
 
     /**
+     * Reports the output of {@code native-image --version} on the builder. The orchestrator compares it with the
+     * GraalVM version the native sources were generated for and, depending on
+     * {@code quarkus.native-matrix.graalvm-version-check}, logs a warning or fails the target; the detected version is
+     * also recorded in the manifest. Runners should call it before starting {@code native-image} when they can, or
+     * after the build otherwise.
+     *
+     * @throws NativeBuildException if the versions do not match and the check is configured to fail
+     */
+    default void reportNativeImageVersion(String versionOutput) throws NativeBuildException {
+    }
+
+    /**
      * @throws InterruptedException if the build was cancelled
      */
     default void checkCancelled() throws InterruptedException {

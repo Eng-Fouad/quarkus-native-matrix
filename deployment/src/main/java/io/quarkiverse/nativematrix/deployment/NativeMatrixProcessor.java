@@ -12,11 +12,16 @@ import java.util.Set;
 
 import org.jboss.logging.Logger;
 
+import io.quarkiverse.nativematrix.deployment.orchestrator.CheckPolicy;
+import io.quarkiverse.nativematrix.deployment.orchestrator.FullBuildPlanner;
 import io.quarkiverse.nativematrix.deployment.orchestrator.MatrixTarget;
 import io.quarkiverse.nativematrix.deployment.orchestrator.NativeMatrixOrchestrator;
 import io.quarkiverse.nativematrix.deployment.orchestrator.NativeSources;
+import io.quarkiverse.nativematrix.deployment.orchestrator.Packager;
 import io.quarkiverse.nativematrix.deployment.orchestrator.RunnerRegistry;
 import io.quarkiverse.nativematrix.deployment.runners.LocalRunner;
+import io.quarkiverse.nativematrix.spi.BuildMode;
+import io.quarkiverse.nativematrix.spi.FullBuild;
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.RunnerOptions;
 import io.quarkus.deployment.annotations.BuildStep;
@@ -67,11 +72,29 @@ class NativeMatrixProcessor {
         Path outputDir = buildSystemTarget.getOutputDirectory();
         try {
             NativeSources sources = NativeSources.read(outputDir.resolve("native-sources"));
+            FullBuild fullBuild = targets.stream().anyMatch(t -> t.mode() == BuildMode.FULL)
+                    ? planFullBuild(config, outputDir)
+                    : null;
+            Path matrixDir = outputDir.resolve(config.outputDirectory());
             NativeMatrixOrchestrator orchestrator = new NativeMatrixOrchestrator(RunnerRegistry.discover(),
-                    new NativeMatrixOrchestrator.Settings(outputDir.resolve(config.outputDirectory()),
+                    new NativeMatrixOrchestrator.Settings(matrixDir,
                             config.parallelism().orElse(targets.size()), config.failFast(),
-                            config.keepWorkDirectories(), config.quiet()));
-            NativeMatrixOrchestrator.MatrixResult result = orchestrator.run(sources, targets);
+                            config.keepWorkDirectories(), config.quiet(), Platform.host(),
+                            policy(config.platformDependencyCheck()),
+                            config.ignoredPlatformDependencies().orElse(List.of()),
+                            policy(config.graalvmVersionCheck()), config.reuseUnchanged()));
+            NativeMatrixOrchestrator.MatrixResult result = orchestrator.run(sources, targets, fullBuild);
+
+            NativeMatrixConfig.PackageConfig packaging = config.packaging();
+            if (packaging.archives() || packaging.jreleaser()) {
+                String name = packaging.name().orElse(sources.outputName().replaceFirst("-runner$", ""));
+                Packager.Packages packages = Packager.archive(result, matrixDir, name);
+                if (packaging.jreleaser()) {
+                    Path jreleaser = Packager.writeJReleaserConfig(packages, matrixDir, name);
+                    LOG.infof("JReleaser configuration written to %s", jreleaser);
+                }
+            }
+
             if (!result.succeeded() && config.failOnError()) {
                 List<String> failed = result.targets().stream().filter(r -> !r.succeeded())
                         .map(r -> r.target().name() + ": " + r.error().orElse(r.status().name())).toList();
@@ -89,9 +112,29 @@ class NativeMatrixProcessor {
     void warnWhenNotSourcesOnly(NativeConfig nativeConfig, NativeMatrixConfig config) {
         if (nativeConfig.enabled() && config.enabled() && !config.target().isEmpty()) {
             LOG.warn("Native matrix targets are configured but quarkus.native.sources-only is not enabled: only the"
-                    + " native executable for the build machine is built. Build with -Dquarkus.native.enabled=true"
-                    + " -Dquarkus.native.sources-only=true to build the matrix.");
+                    + " native executable for the build machine is built. Build with -Dnative-matrix"
+                    + " (or -Dquarkus.native-matrix.build=true) to build the matrix.");
         }
+    }
+
+    static FullBuild planFullBuild(NativeMatrixConfig config, Path outputDir) {
+        NativeMatrixConfig.FullBuildConfig c = config.fullBuild();
+        if (c.posixCommand().isPresent() != c.windowsCommand().isPresent()) {
+            throw new IllegalArgumentException("Set both quarkus.native-matrix.full-build.posix-command and"
+                    + " quarkus.native-matrix.full-build.windows-command, or none");
+        }
+        FullBuildPlanner.Settings settings = new FullBuildPlanner.Settings(
+                c.projectDirectory().map(Path::of),
+                c.buildTool().map(t -> FullBuildPlanner.BuildTool.valueOf(t.name())),
+                c.posixCommand(), c.windowsCommand(), c.args().orElse(List.of()), c.skipTests(),
+                Set.copyOf(c.excludedDirectories()));
+        FullBuild plan = FullBuildPlanner.plan(outputDir, settings);
+        LOG.debugf("Full build of %s: %s", plan.projectDirectory(), plan.posixCommand());
+        return plan;
+    }
+
+    static CheckPolicy policy(NativeMatrixConfig.Check check) {
+        return CheckPolicy.valueOf(check.name());
     }
 
     static List<MatrixTarget> resolveTargets(NativeMatrixConfig config, Platform host) {
@@ -127,7 +170,8 @@ class NativeMatrixProcessor {
             }
             RunnerOptions options = RunnerOptions.of(config.runner().getOrDefault(runnerId, Map.of()))
                     .with(t.options());
-            targets.add(new MatrixTarget(name, platform, runnerId, options, t.timeout().orElse(config.timeout())));
+            BuildMode mode = BuildMode.valueOf(t.mode().orElse(config.mode()).name());
+            targets.add(new MatrixTarget(name, platform, runnerId, options, t.timeout().orElse(config.timeout()), mode));
         }
         if (!problems.isEmpty()) {
             throw new IllegalArgumentException("Invalid native matrix configuration:\n  - " + String.join("\n  - ", problems));

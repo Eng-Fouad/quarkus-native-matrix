@@ -12,11 +12,13 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -28,21 +30,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jboss.logging.Logger;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
 import io.quarkiverse.nativematrix.spi.BuildContext;
 import io.quarkiverse.nativematrix.spi.BuildLog;
+import io.quarkiverse.nativematrix.spi.BuildMode;
+import io.quarkiverse.nativematrix.spi.FullBuild;
 import io.quarkiverse.nativematrix.spi.NativeBuildException;
 import io.quarkiverse.nativematrix.spi.NativeBuildRequest;
 import io.quarkiverse.nativematrix.spi.NativeBuildResult;
 import io.quarkiverse.nativematrix.spi.NativeBuildRunner;
+import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.support.FileTrees;
 
 /**
  * Runs every target of the matrix, in parallel, and collects the results.
  * <p>
- * This class does not depend on the Quarkus build API, so it can be tested (and reused) on its own.
+ * This class does not depend on the Quarkus build chain (only on the GraalVM version parser of Quarkus), so it can be
+ * tested and reused on its own.
  */
 public final class NativeMatrixOrchestrator {
 
@@ -57,9 +64,31 @@ public final class NativeMatrixOrchestrator {
      * @param failFast cancel the other targets when one fails
      * @param keepWorkDirectories do not delete the per-target work directories
      * @param quiet log tool output at DEBUG level
+     * @param host the platform of the machine that produced the native sources
+     * @param platformDependencyCheck what to do when the native sources contain jars selected for another platform
+     * @param ignoredPlatformDependencies jar file name globs excluded from the platform dependency check
+     * @param graalVmVersionCheck what to do when a builder runs another GraalVM version than the native sources expect
+     * @param reuseUnchanged reuse the executables of the previous run whose inputs did not change
      */
     public record Settings(Path outputDirectory, int parallelism, boolean failFast, boolean keepWorkDirectories,
-            boolean quiet) {
+            boolean quiet, Platform host, CheckPolicy platformDependencyCheck, List<String> ignoredPlatformDependencies,
+            CheckPolicy graalVmVersionCheck, boolean reuseUnchanged) {
+
+        public Settings {
+            host = host == null ? Platform.host() : host;
+            platformDependencyCheck = platformDependencyCheck == null ? CheckPolicy.FAIL : platformDependencyCheck;
+            ignoredPlatformDependencies = ignoredPlatformDependencies == null ? List.of()
+                    : List.copyOf(ignoredPlatformDependencies);
+            graalVmVersionCheck = graalVmVersionCheck == null ? CheckPolicy.WARN : graalVmVersionCheck;
+        }
+
+        /**
+         * Settings with the default checks.
+         */
+        public Settings(Path outputDirectory, int parallelism, boolean failFast, boolean keepWorkDirectories,
+                boolean quiet) {
+            this(outputDirectory, parallelism, failFast, keepWorkDirectories, quiet, null, null, null, null, false);
+        }
     }
 
     /**
@@ -80,6 +109,13 @@ public final class NativeMatrixOrchestrator {
     }
 
     public MatrixResult run(NativeSources sources, List<MatrixTarget> targets) throws IOException {
+        return run(sources, targets, null);
+    }
+
+    /**
+     * @param fullBuild how to build the whole project, required by {@link BuildMode#FULL} targets; may be {@code null}
+     */
+    public MatrixResult run(NativeSources sources, List<MatrixTarget> targets, FullBuild fullBuild) throws IOException {
         if (targets.isEmpty()) {
             throw new IllegalArgumentException("No native matrix target to build");
         }
@@ -103,7 +139,32 @@ public final class NativeMatrixOrchestrator {
                         + " executables");
                 continue;
             }
+            String mode = target.mode().name().toLowerCase(Locale.ROOT);
+            if (!runner.supports(target.mode())) {
+                problems.add(target.name() + ": the '" + runner.id() + "' runner does not support mode=" + mode);
+                continue;
+            }
+            if (target.mode() == BuildMode.FULL && fullBuild == null) {
+                problems.add(target.name() + ": mode=full but the project to build could not be determined; set"
+                        + " quarkus.native-matrix.full-build.project-directory");
+                continue;
+            }
             BuildLog log = new PrefixedBuildLog(LOG, target.name(), settings.quiet());
+            if (target.mode() == BuildMode.SOURCES && settings.platformDependencyCheck() != CheckPolicy.OFF) {
+                List<String> mismatches = PlatformDependencies.mismatches(sources.directory().resolve("lib"),
+                        settings.host(), target.platform(), settings.ignoredPlatformDependencies());
+                if (!mismatches.isEmpty()) {
+                    String message = "the native sources were produced on " + settings.host() + " and contain jars"
+                            + " selected for that platform, so a " + target.platform() + " executable would be broken: "
+                            + String.join(", ", mismatches) + ". Build this target with mode=full, or list the jars in"
+                            + " quarkus.native-matrix.ignored-platform-dependencies if they are harmless";
+                    if (settings.platformDependencyCheck() == CheckPolicy.FAIL) {
+                        problems.add(target.name() + ": " + message);
+                        continue;
+                    }
+                    log.warn(message.substring(0, 1).toUpperCase(Locale.ROOT) + message.substring(1));
+                }
+            }
             List<String> args = ArgsAdjuster.adjust(sources.args(), target.platform(), sources.directory(), log::warn);
             NativeBuildRequest request = NativeBuildRequest.builder()
                     .buildId(buildId)
@@ -117,6 +178,8 @@ public final class NativeMatrixOrchestrator {
                     .options(target.options())
                     .outputDirectory(outputRoot.resolve(sanitize(target.name())))
                     .timeout(target.timeout())
+                    .mode(target.mode())
+                    .fullBuild(target.mode() == BuildMode.FULL ? fullBuild : null)
                     .build();
             try {
                 runner.validate(request);
@@ -131,9 +194,34 @@ public final class NativeMatrixOrchestrator {
             throw new IllegalArgumentException("Invalid native matrix configuration:\n  - " + String.join("\n  - ", problems));
         }
 
+        // fingerprints of the inputs, to reuse unchanged executables of the previous run
+        Map<MatrixTarget, String> fingerprints = new HashMap<>();
+        Map<String, JsonNode> previous = new HashMap<>();
+        if (settings.reuseUnchanged()) {
+            String sourcesHash = Fingerprints.directory(sources.directory(), p -> true);
+            String projectHash = fullBuild != null && targets.stream().anyMatch(t -> t.mode() == BuildMode.FULL)
+                    ? Fingerprints.directory(fullBuild.projectDirectory(), fullBuild.filter())
+                    : null;
+            for (MatrixTarget t : targets) {
+                boolean full = t.mode() == BuildMode.FULL;
+                fingerprints.put(t, Fingerprints.target(full ? projectHash : sourcesHash, t, full ? fullBuild : null));
+            }
+            Path previousManifest = outputRoot.resolve(MANIFEST_FILE);
+            if (Files.isRegularFile(previousManifest)) {
+                try {
+                    for (JsonNode node : new ObjectMapper().readTree(previousManifest.toFile()).path("targets")) {
+                        previous.put(node.path("name").asText(), node);
+                    }
+                } catch (IOException e) {
+                    LOG.debugf(e, "Ignoring unreadable manifest %s", previousManifest);
+                }
+            }
+        }
+
         // 2. build
         LOG.infof("Building %d native executable(s) [build id %s]: %s", targets.size(), buildId,
-                String.join(", ", targets.stream().map(t -> t.name() + " (" + t.runnerId() + ")").toList()));
+                String.join(", ", targets.stream().map(t -> t.name() + " (" + t.runnerId()
+                        + (t.mode() == BuildMode.FULL ? ", full" : "") + ")").toList()));
         int parallelism = Math.max(1, Math.min(settings.parallelism(), targets.size()));
         AtomicInteger threadIds = new AtomicInteger();
         ExecutorService pool = Executors.newFixedThreadPool(parallelism, r -> {
@@ -151,7 +239,7 @@ public final class NativeMatrixOrchestrator {
         try {
             for (MatrixTarget target : targets) {
                 TargetTask task = new TargetTask(target, runners.get(target), requests.get(target), outputRoot, watchdog,
-                        abortAll, tasks);
+                        abortAll, tasks, fingerprints.get(target), previous.get(target.name()));
                 tasks.add(task);
             }
             List<Future<TargetResult>> futures = new ArrayList<>();
@@ -190,9 +278,13 @@ public final class NativeMatrixOrchestrator {
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private final AtomicBoolean timedOut = new AtomicBoolean();
         private volatile Thread thread;
+        private volatile String nativeImageVersion;
+        private final String fingerprint;
+        private final JsonNode previous;
 
         TargetTask(MatrixTarget target, NativeBuildRunner runner, NativeBuildRequest request, Path outputRoot,
-                ScheduledExecutorService watchdog, AtomicBoolean abortAll, List<TargetTask> siblings) {
+                ScheduledExecutorService watchdog, AtomicBoolean abortAll, List<TargetTask> siblings, String fingerprint,
+                JsonNode previous) {
             this.target = target;
             this.runner = runner;
             this.request = request;
@@ -200,6 +292,40 @@ public final class NativeMatrixOrchestrator {
             this.watchdog = watchdog;
             this.abortAll = abortAll;
             this.siblings = siblings;
+            this.fingerprint = fingerprint;
+            this.previous = previous;
+        }
+
+        /**
+         * @return the result of the previous run if its inputs are the same and its files are intact, else null
+         */
+        private TargetResult reusePrevious(BuildLog log) {
+            if (fingerprint == null || previous == null || !fingerprint.equals(previous.path("fingerprint").asText())
+                    || !List.of("success", "reused").contains(previous.path("status").asText())
+                    || !previous.hasNonNull("executable")) {
+                return null;
+            }
+            try {
+                Path executable = outputRoot.resolve(previous.path("executable").asText()).normalize();
+                if (!Files.isRegularFile(executable) || !sha256(executable).equals(previous.path("sha256").asText())) {
+                    return null;
+                }
+                List<Path> additional = new ArrayList<>();
+                for (JsonNode f : previous.path("additionalFiles")) {
+                    Path p = outputRoot.resolve(f.asText()).normalize();
+                    if (!Files.isRegularFile(p)) {
+                        return null;
+                    }
+                    additional.add(p);
+                }
+                Map<String, String> metadata = new LinkedHashMap<>();
+                previous.path("metadata").fields().forEachRemaining(e -> metadata.put(e.getKey(), e.getValue().asText()));
+                log.info("Inputs unchanged since the previous build, reusing " + outputRoot.relativize(executable));
+                return TargetResult.reused(target, new NativeBuildResult(executable, additional, metadata),
+                        previous.path("sha256").asText(), fingerprint);
+            } catch (IOException e) {
+                return null;
+            }
         }
 
         void cancel() {
@@ -217,6 +343,10 @@ public final class NativeMatrixOrchestrator {
             if (abortAll.get() || cancelled.get()) {
                 return TargetResult.failure(target, TargetResult.Status.CANCELLED, Duration.ZERO,
                         "Cancelled because another target failed");
+            }
+            TargetResult reused = reusePrevious(log);
+            if (reused != null) {
+                return reused;
             }
             thread = Thread.currentThread();
             Path workDir = outputRoot.resolve(".work").resolve(sanitize(target.name()));
@@ -239,9 +369,12 @@ public final class NativeMatrixOrchestrator {
                     throw new NativeBuildException("The runner put the executable outside of the output directory: "
                             + executable);
                 }
+                if (nativeImageVersion != null) {
+                    result = result.withMetadata("graalvm", nativeImageVersion);
+                }
                 Duration duration = Duration.between(start, Instant.now());
                 log.infof("Built %s in %s", outputRoot.relativize(executable), format(duration));
-                return TargetResult.success(target, duration, result, sha256(executable));
+                return TargetResult.success(target, duration, result, sha256(executable), fingerprint);
             } catch (InterruptedException e) {
                 Duration duration = Duration.between(start, Instant.now());
                 if (timedOut.get()) {
@@ -300,6 +433,33 @@ public final class NativeMatrixOrchestrator {
             public boolean isCancelled() {
                 return cancelled.get();
             }
+
+            @Override
+            public void reportNativeImageVersion(String versionOutput) throws NativeBuildException {
+                Optional<String> detected = GraalVmVersions.parse(versionOutput);
+                if (detected.isEmpty()) {
+                    log.warn("Could not determine the GraalVM version of the builder from: "
+                            + versionOutput.strip().replace('\n', ' '));
+                    return;
+                }
+                nativeImageVersion = detected.get();
+                log.info("Builder runs GraalVM " + nativeImageVersion);
+                Optional<String> expected = request.graalVmVersion().flatMap(GraalVmVersions::majorMinor);
+                // in full mode Quarkus runs on the builder and adapts the arguments to its GraalVM itself
+                if (request.mode() != BuildMode.SOURCES || expected.isEmpty()
+                        || settings.graalVmVersionCheck() == CheckPolicy.OFF
+                        || expected.get().equals(nativeImageVersion)) {
+                    return;
+                }
+                String message = "The native sources were generated for GraalVM " + expected.get()
+                        + " but the builder runs GraalVM " + nativeImageVersion
+                        + "; native-image may reject or misinterpret options. Use GraalVM " + expected.get()
+                        + " on the builder, or build this target with mode=full";
+                if (settings.graalVmVersionCheck() == CheckPolicy.FAIL) {
+                    throw new NativeBuildException(message);
+                }
+                log.warn(message);
+            }
         }
     }
 
@@ -315,6 +475,7 @@ public final class NativeMatrixOrchestrator {
             e.put("name", r.target().name());
             e.put("platform", r.target().platform().id());
             e.put("runner", r.target().runnerId());
+            e.put("mode", r.target().mode().name().toLowerCase(Locale.ROOT));
             e.put("status", r.status().name().toLowerCase(Locale.ROOT));
             e.put("durationSeconds", r.duration().toSeconds());
             r.result().ifPresent(res -> {
@@ -328,6 +489,7 @@ public final class NativeMatrixOrchestrator {
                 }
             });
             r.sha256().ifPresent(s -> e.put("sha256", s));
+            r.fingerprint().ifPresent(s -> e.put("fingerprint", s));
             r.error().ifPresent(s -> e.put("error", s));
             entries.add(e);
         }

@@ -13,6 +13,15 @@ import java.util.Locale;
  */
 public class FakeNativeImage {
     public static void main(String[] argv) throws Exception {
+        if (argv.length == 1 && argv[0].equals("--version")) {
+            String version = System.getProperty("fake.graalvm.version", System.getenv().getOrDefault(
+                    "FAKE_GRAALVM_VERSION", "25.0.1"));
+            System.out.println("native-image " + version + " 2025-10-21");
+            System.out.println("OpenJDK Runtime Environment Mandrel-" + version + ".0-Final (build " + version + "+8)");
+            System.out.println("OpenJDK 64-Bit Server VM Mandrel-" + version + ".0-Final (build " + version
+                    + "+8, mixed mode)");
+            return;
+        }
         List<String> args = new ArrayList<>();
         for (String a : argv) {
             if (a.startsWith("@")) {
@@ -38,8 +47,10 @@ public class FakeNativeImage {
         }
         boolean windows = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
         Path out = Path.of(args.get(o + 1) + (windows ? ".exe" : ""));
-        if (out.getParent() != null) {
-            Files.createDirectories(out.getParent());
+        if (out.getParent() != null && !Files.isDirectory(out.getParent())) {
+            // like GraalVM
+            System.err.println("Error: Writing image to non-existent directory " + out.getParent() + " is not allowed.");
+            System.exit(20);
         }
         Files.write(Path.of(args.get(o + 1) + ".args"), args);
         Files.writeString(out, "fake executable");

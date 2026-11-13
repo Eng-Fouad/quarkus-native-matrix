@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -27,20 +28,64 @@ public final class FileTrees {
      * Recursively copies the content of {@code source} into {@code target}, creating it if needed.
      */
     public static void copy(Path source, Path target) throws IOException {
+        copy(source, target, p -> true);
+    }
+
+    /**
+     * Recursively copies the files of {@code source} accepted by {@code filter} (which receives paths relative to
+     * {@code source}; rejected directories are not walked) into {@code target}.
+     */
+    public static void copy(Path source, Path target, Predicate<Path> filter) throws IOException {
         Files.walkFileTree(source, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Files.createDirectories(target.resolve(source.relativize(dir).toString()));
+                Path relative = source.relativize(dir);
+                if (!relative.toString().isEmpty() && !filter.test(relative)) {
+                    return FileVisitResult.SKIP_SUBTREE;
+                }
+                Files.createDirectories(target.resolve(relative.toString()));
                 return FileVisitResult.CONTINUE;
             }
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, target.resolve(source.relativize(file).toString()), StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.COPY_ATTRIBUTES);
+                Path relative = source.relativize(file);
+                if (filter.test(relative)) {
+                    Files.copy(file, target.resolve(relative.toString()), StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.COPY_ATTRIBUTES);
+                }
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    /**
+     * @return the regular files of {@code dir} accepted by {@code filter} (which receives paths relative to
+     *         {@code dir}; rejected directories are not walked), sorted
+     */
+    public static List<Path> listFiles(Path dir, Predicate<Path> filter) throws IOException {
+        List<Path> files = new ArrayList<>();
+        if (!Files.isDirectory(dir)) {
+            return files;
+        }
+        Files.walkFileTree(dir, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path d, BasicFileAttributes attrs) {
+                Path relative = dir.relativize(d);
+                return relative.toString().isEmpty() || filter.test(relative) ? FileVisitResult.CONTINUE
+                        : FileVisitResult.SKIP_SUBTREE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                if (attrs.isRegularFile() && filter.test(dir.relativize(file))) {
+                    files.add(file);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        files.sort(null);
+        return files;
     }
 
     /**

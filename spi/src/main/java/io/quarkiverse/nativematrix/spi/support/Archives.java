@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -33,7 +34,16 @@ public final class Archives {
      * e.g. a target specific argument file.
      */
     public static Path zip(Path directory, Path zipFile, Map<String, byte[]> extraEntries) throws IOException {
-        List<Path> files = FileTrees.listFiles(directory);
+        return zip(directory, zipFile, extraEntries, p -> true);
+    }
+
+    /**
+     * Zips the files of {@code directory} accepted by {@code filter} (which receives paths relative to
+     * {@code directory}; rejected directories are not walked) plus additional in-memory entries.
+     */
+    public static Path zip(Path directory, Path zipFile, Map<String, byte[]> extraEntries, Predicate<Path> filter)
+            throws IOException {
+        List<Path> files = FileTrees.listFiles(directory, filter);
         Files.createDirectories(zipFile.toAbsolutePath().getParent());
         try (OutputStream os = Files.newOutputStream(zipFile); ZipOutputStream zos = new ZipOutputStream(os)) {
             for (Path file : files) {
