@@ -106,13 +106,15 @@
 
     <profiles>
         <profile>
-            <!-- not released: the documentation is published from the repository by docs.quarkiverse.io -->
+            <!-- not released: the documentation is published from the repository by docs.quarkiverse.io.
+                 Needs JDK 21+: quarkus-config-doc-maven-plugin is compiled for Java 21 (the extension supports 17). -->
             <id>unreleased-modules</id>
             <activation>
                 <property>
                     <name>performRelease</name>
                     <value>!true</value>
                 </property>
+                <jdk>[21,)</jdk>
             </activation>
             <modules>
                 <module>docs</module>
