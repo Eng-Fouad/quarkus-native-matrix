@@ -1,0 +1,123 @@
+= Build modes and checks
+
+include::./includes/attributes.adoc[]
+
+Each target is built in one of two modes, chosen with `quarkus.native-matrix.mode` (default for all targets) or
+`quarkus.native-matrix.target."<name>".mode`.
+
+[cols="1,3,3"]
+|===
+| | `sources` (default) | `full`
+
+| What runs on the builder
+| `native-image` only, on the native sources produced once by your build
+| The whole project build (`mvnw package -Dquarkus.native.enabled=true`...)
+
+| Builder needs
+| GraalVM or Mandrel
+| GraalVM or Mandrel, the build tool or its wrapper, access to the artifact repositories
+
+| Speed
+| Fast: Quarkus runs once
+| Slower: Quarkus runs on every builder
+
+| Dependencies
+| Resolved once, on the build machine
+| Resolved on each builder, for its platform
+|===
+
+== When to use `full` mode
+
+Some dependencies are selected for the machine running the build:
+
+* Maven profiles activated by `<os>`;
+* platform classifiers, as used by JavaFX (`javafx-graphics-25-win.jar`), LWJGL (`lwjgl-3.3.3-natives-macos-arm64.jar`)
+  or Netty native transports (`netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar`);
+* build steps that inspect the host OS.
+
+With `sources`, every target receives the jars selected for the build machine, so a macOS executable built from
+sources produced on Windows would embed the Windows JavaFX libraries. `full` mode resolves them on each builder.
+
+== Platform dependency check
+
+To catch that problem before anything is built, `sources` targets are checked against the platform specific jars of
+`native-sources/lib`. When all the variants of a jar match the build machine and none matches the target - the
+signature of a dependency selected for the build machine - the target fails with a message listing the jars and
+suggesting `mode=full`. Jars bundled on purpose for several platforms are left alone.
+
+[source,properties]
+----
+quarkus.native-matrix.platform-dependency-check=fail    # fail (default), warn or off
+quarkus.native-matrix.ignored-platform-dependencies=*netty-transport-native-epoll*
+----
+
+== GraalVM version check
+
+Quarkus generates the `native-image` arguments for a given GraalVM release, recorded in
+`native-sources/graalvm.version`, and options change between feature releases. Builders report their
+`native-image --version`, which is recorded in the manifest. In `sources` mode, a different `major.minor` version
+logs a warning, or fails the target:
+
+[source,properties]
+----
+quarkus.native-matrix.graalvm-version-check=warn    # fail, warn (default) or off
+----
+
+In `full` mode, Quarkus runs on the builder and adapts the arguments to its GraalVM itself.
+
+== Portable arguments
+
+The generated arguments are adapted to each target:
+
+* files and directories of the build machine referenced with absolute paths (agent configuration directories, trust
+  stores, configuration files...) are copied into the native sources, under `native-matrix-extra/`, and the arguments
+  are rewritten to relative paths, so that every builder receives them. An absolute path that does not exist on the
+  build machine is kept as is, with a warning;
+* the `heapdump` monitoring option, which Quarkus adds unless the build machine runs Windows, is dropped for Windows
+  targets;
+* Linux-only static linking options (`--static`, `--libc=musl`...) are ignored, with a warning, for other targets.
+
+== Full mode details
+
+The project shipped to the builders is found from the module being built:
+
+* the directory holding `settings.gradle(.kts)` for Gradle;
+* else the Maven root, marked by `.mvn` or `mvnw`, looked up to the repository root;
+* else the top of the chain of `pom.xml` files above the module.
+
+Set `quarkus.native-matrix.full-build.project-directory` to override it. Build outputs and tool directories
+(`quarkus.native-matrix.full-build.excluded-directories`) are not shipped, and shell scripts (`mvnw`, `gradlew`,
+`*.sh`) get LF line endings for Linux and macOS builders.
+
+The generated command:
+
+* uses the wrapper when there is one, else `mvn` or `gradle`;
+* builds only the module and what it needs: `-pl <module> -am` with Maven, `:<module>:build` with Gradle;
+* skips the tests (`quarkus.native-matrix.full-build.skip-tests`);
+* builds a native executable without container build, and disables the matrix on the builder;
+* appends `quarkus.native-matrix.full-build.args`, e.g. `-Pprod`.
+
+`quarkus.native-matrix.full-build.posix-command` and `windows-command` replace it entirely. The command must write
+the executable in the build output directory of the module.
+
+=== Local SNAPSHOT dependencies
+
+SNAPSHOT dependencies (and SNAPSHOT parent POMs) that only exist in the local Maven repository of the build machine
+- typically another project you installed with `mvn install` - cannot be downloaded by the builders. They are
+shipped with the project, in `.native-matrix/repository`, and read by Maven through `-Dmaven.repo.local.tail`
+(Maven 3.9 or later) and by Gradle through a generated init script. Disable it with
+`quarkus.native-matrix.full-build.ship-snapshots=false`. When you replace the commands, add the tail repository
+yourself.
+
+=== Parent POMs
+
+A parent POM that exists on disk outside the shipped directory fails the build before anything is shipped, with a
+message naming the `project-directory` to set. Parent POMs resolved from repositories are not affected.
+
+== Notes
+
+* The matrix runs inside the Quarkus build, after the native sources are produced, so a matrix build is a native
+  sources build - that's what `-Dnative-matrix` does. When every target uses `full` mode, it only adds a few seconds
+  of jar packaging.
+* Gradle included builds outside the project directory, and repositories that need credentials, must be reachable
+  from the builders in `full` mode.

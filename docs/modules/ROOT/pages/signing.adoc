@@ -1,0 +1,54 @@
+= Signing
+
+include::./includes/attributes.adoc[]
+
+Executables are signed on the build machine once they are built and downloaded, whatever the runner, so the signing
+keys never leave it. The key stores are opened before any target is built: a wrong password fails the build right
+away. The signing configuration is part of the inputs of a target, so changing it rebuilds the affected targets
+instead of reusing unsigned executables. Passwords are never logged nor passed on command lines.
+
+== Windows: Authenticode
+
+Windows executables are signed with https://ebourg.github.io/jsign/[Jsign], in-process, on any OS: no `signtool` and
+no Windows machine are needed. Jsign supports key files (PKCS#12, JKS), hardware tokens (PKCS#11, YubiKey...) and
+cloud key services: Azure Trusted Signing, Azure Key Vault, AWS KMS, Google Cloud KMS, HashiCorp Vault, DigiCert ONE,
+SSL.com eSigner...
+
+[source,properties]
+----
+quarkus.native-matrix.signing.windows.keystore=signing.p12
+quarkus.native-matrix.signing.windows.storepass=${SIGNING_STOREPASS}
+quarkus.native-matrix.signing.windows.program-name=My App
+quarkus.native-matrix.signing.windows.program-url=https://example.org
+----
+
+With a cloud key service, `keystore` is the name or URL of the key store, `storepass` holds the credentials, and
+`certfile` the certificate chain when the service does not provide it; see the
+https://ebourg.github.io/jsign/[Jsign documentation] for each `storetype`.
+
+Signatures are timestamped by default (`timestamp`, `tsaurl`), so they stay valid after the certificate expires.
+
+== macOS: Developer ID and notarization
+
+macOS executables are signed with
+https://gregoryszorc.com/docs/apple-codesign/stable/[rcodesign] (apple-codesign), which runs on Linux and Windows
+too: no Mac or keychain is needed on the build machine. Install it, then:
+
+[source,properties]
+----
+quarkus.native-matrix.signing.macos.p12-file=developer-id-application.p12
+quarkus.native-matrix.signing.macos.p12-password=${APPLE_P12_PASSWORD}
+quarkus.native-matrix.signing.macos.notarize=true
+quarkus.native-matrix.signing.macos.api-key-file=app-store-connect-key.json
+----
+
+Executables are signed with the hardened runtime, which notarization requires; add `entitlements` if the application
+needs some. The App Store Connect API key file is created with `rcodesign encode-app-store-connect-api-key`.
+
+NOTE: Apple notarizes archives, not bare executables, and cannot staple a notarization ticket to a bare executable:
+Gatekeeper checks the notarization online the first time the executable runs.
+
+== Linux
+
+Linux executables are best signed when publishing them, e.g. with the GPG or cosign signing of
+https://jreleaser.org[JReleaser], see xref:releasing.adoc[releasing].

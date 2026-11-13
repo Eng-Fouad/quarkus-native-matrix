@@ -1,0 +1,120 @@
+= Runners
+
+include::./includes/attributes.adoc[]
+
+A runner gets the native sources (or the project, in `full` mode) to a machine of the target platform, builds there
+and brings the executable back. Options are set per target, `quarkus.native-matrix.target."<name>".options.<key>`, or
+for all the targets of a runner, `quarkus.native-matrix.runner."<id>".<key>`.
+
+[cols="1,2,1,2"]
+|===
+| Runner | Platforms | Modes | Builder needs
+
+| `local` | the build machine | `sources` | GraalVM
+| `docker` | Linux, amd64 and arm64, on a local or remote engine | `sources`, `full` | a builder image
+| `ssh` | Linux, macOS, Windows | `sources`, `full` | GraalVM (+ build tool for `full`)
+| `github-actions` | all six | `sources`, `full` | nothing: GitHub-hosted runners
+|===
+
+The `local`, `docker` and `ssh` runners stream the build output live, each line prefixed with the target name.
+`quarkus.native-matrix.quiet=true` moves that output to the DEBUG level. The `github-actions` runner logs the run URL
+and its status changes.
+
+== `local`
+
+Runs `native-image` on the build machine, so it only builds for the build machine platform.
+
+[cols="1,3"]
+|===
+| Option | Description
+
+| `graalvm-home` | Defaults to `GRAALVM_HOME`, then `JAVA_HOME`, then the `PATH`
+| `command` | Comma separated command replacing `native-image`, e.g. a wrapper script
+|===
+
+== `docker`
+
+Runs a builder container on a local *or remote* Docker or Podman engine. Files go through `docker cp`, not bind mounts,
+so the engine can be remote: pointing `context` or `host` at an arm64 machine gives native-speed `linux-arm64` builds.
+A local amd64 engine builds arm64 under QEMU emulation, which works but is slow. Linux targets only.
+
+In `full` mode the project is built in the container with its own build tool; the Mandrel builder images ship a JDK
+but no Maven, so the project needs the Maven or Gradle wrapper. Downloaded dependencies are kept between builds in the
+`quarkus-native-matrix-m2` and `quarkus-native-matrix-gradle` volumes.
+
+[cols="1,1,3"]
+|===
+| Option | Default | Description
+
+| `runtime` | `docker` | `docker`, `podman`, or a path
+| `context` / `host` | | `docker --context` / `-H` (`podman --connection` / `--url`), e.g. `ssh://me@arm-box`
+| `image` | `quarkus.native.builder-image`, else `quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-25` |
+| `pull` | `missing` | `always` or `never`
+| `platform` | the target platform | e.g. `linux/arm64`
+| `user` | `root` | The files copied into the throwaway container are owned by root
+| `memory`, `cpus` | | Resource limits
+| `entrypoint` / `shell` | `native-image` / `/bin/sh` | Entry point in `sources` / `full` mode
+| `cache-volumes` | `true` | `full` mode: keep `~/.m2` and `~/.gradle` in named volumes
+| `check-version` | `true` | Run `native-image --version` in the image first
+| `create-args` | | Extra comma separated `docker create` arguments
+|===
+
+== `ssh`
+
+Builds on any machine reachable over SSH: Linux, macOS, or Windows with OpenSSH. Only GraalVM is needed there, plus
+the MSVC build tools on Windows. Two SSH clients are available:
+
+* `openssh` uses the `ssh` and `scp` executables of the build machine, so your SSH agent, `~/.ssh/config` aliases,
+  `ProxyJump`, certificates and hardware keys work;
+* `mina` is an embedded client that needs no executable, but only reads key files;
+* `auto`, the default, picks `openssh` when `ssh` and `scp` are on the `PATH` and no `identity-passphrase` is set.
+
+[cols="1,1,3"]
+|===
+| Option | Default | Description
+
+| `host` | _required_ | A host name, or an alias of `~/.ssh/config` with `openssh`
+| `client` | `auto` | `auto`, `openssh` or `mina`
+| `port`, `user` | `22`; the OpenSSH configuration, or the local user with `mina` |
+| `identity-file` | agent and OpenSSH configuration; `mina`: `~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa` | Comma separated
+| `identity-passphrase` | | `mina` only; use an expression, e.g. `${SSH_KEY_PASSPHRASE}`
+| `known-hosts` | `~/.ssh/known_hosts` |
+| `strict-host-key-checking` | `true` | Unknown hosts are rejected
+| `graalvm-home` | | Otherwise `native-image` must be on the `PATH` of non-interactive sessions; becomes `JAVA_HOME` in `full` mode
+| `pre-command` | | Runs first, in the same shell, e.g. `source ~/.sdkman/bin/sdkman-init.sh`, or on Windows `call "C:\...\vcvars64.bat"`
+| `work-directory` | `.quarkus-native-matrix` | Relative to the remote home, or absolute
+| `keep-remote-files` | `false` |
+| `check-version` | `true` |
+| `connect-timeout` | `30s` |
+|===
+
+== `github-actions`
+
+Builds on GitHub-hosted runners: every platform, without owning any hardware. The native sources (or the project,
+in `full` mode) are uploaded to a temporary *draft release* - visible to collaborators only, and deleted afterwards -
+then a workflow is dispatched and the executable is downloaded from the run artifact. If the build is cancelled or
+times out, the workflow run is cancelled too.
+
+. Commit the workflow as `.github/workflows/native-matrix.yml` on the default branch: GitHub only dispatches workflows
+  present there. The first build writes it to `target/native-matrix/github/native-matrix.yml` and tells you to commit
+  it; so does a build finding an outdated workflow.
+. Provide a token with `contents: write` and `actions: write` on the repository.
+
+[cols="1,1,3"]
+|===
+| Option | Default | Description
+
+| `repository` | _required_ | `owner/name`
+| `token` | `GITHUB_TOKEN` / `GH_TOKEN` environment variables |
+| `workflow` | `native-matrix.yml` |
+| `ref` | the default branch | Branch holding the workflow
+| `runs-on` | `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-15`, `macos-15-intel`, `windows-2025`, `windows-11-arm` | Any label, including self-hosted runners
+| `java-version` | derived from `graalvm.version` |
+| `distribution` | `graalvm-community` | `graalvm`, `mandrel`, `liberica`
+| `api-url` | `https://api.github.com` | GitHub Enterprise Server: `https://HOST/api/v3`
+| `poll-interval`, `dispatch-timeout` | `15s`, `3m` |
+| `keep-release`, `artifact-retention-days` | `false`, `1` |
+|===
+
+NOTE: GitHub-hosted macOS arm64 runners are sometimes short of capacity: a job that never gets a runner fails after a
+while. Thanks to xref:releasing.adoc#reruns[reruns], building again only rebuilds that target.

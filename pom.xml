@@ -106,6 +106,19 @@
 
     <profiles>
         <profile>
+            <!-- not released: the documentation is published from the repository by docs.quarkiverse.io -->
+            <id>unreleased-modules</id>
+            <activation>
+                <property>
+                    <name>performRelease</name>
+                    <value>!true</value>
+                </property>
+            </activation>
+            <modules>
+                <module>docs</module>
+            </modules>
+        </profile>
+        <profile>
             <!-- real native builds: mvn -Pit package -Dnative-matrix (see the README) -->
             <id>it</id>
             <modules>

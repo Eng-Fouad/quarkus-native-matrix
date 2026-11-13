@@ -1,0 +1,5 @@
+name: quarkus-native-matrix
+title: Native Matrix
+version: dev
+nav:
+  - modules/ROOT/nav.adoc

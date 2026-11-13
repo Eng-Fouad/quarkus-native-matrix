@@ -4,6 +4,10 @@ Build Quarkus native executables for **several OS/architecture combinations from
 Linux, macOS and Windows on amd64 and arm64, on your machine, in containers, over SSH, on GitHub Actions,
 or anywhere a custom runner can reach.
 
+📖 **Documentation:** [`docs/modules/ROOT/pages`](docs/modules/ROOT/pages/index.adoc), published on
+docs.quarkiverse.io once the extension joins Quarkiverse, with the generated
+[configuration reference](docs/modules/ROOT/pages/includes/quarkus-native-matrix.adoc).
+
 ```
 $ mvn package -Dnative-matrix
 
