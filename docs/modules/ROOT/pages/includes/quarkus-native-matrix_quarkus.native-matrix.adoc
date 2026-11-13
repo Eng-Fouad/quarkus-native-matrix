@@ -1,0 +1,1064 @@
+[.configuration-legend]
+icon:lock[title=Fixed at build time] Configuration property fixed at build time - All other configuration properties are overridable at runtime
+[.configuration-reference.searchable, cols="80,.^10,.^10"]
+|===
+
+h|[.header-title]##Configuration property##
+h|Type
+h|Default
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-enabled]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-enabled[`+++quarkus.native-matrix.enabled+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.enabled+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Whether the native matrix build is enabled.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_ENABLED+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_ENABLED+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++true+++`
+
+h|[[quarkus-native-matrix_section_quarkus-native-matrix-target]] [.section-name.section-level0]##link:#quarkus-native-matrix_section_quarkus-native-matrix-target[The targets of the matrix, keyed by a name of your choice]##
+h|Type
+h|Default
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-target-target-name-mode]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-target-target-name-mode[`+++quarkus.native-matrix.target."target-name".mode+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.target."target-name".mode+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+How this target is built; defaults to `quarkus.native-matrix.mode`.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__MODE+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__MODE+++`
+endif::add-copy-button-to-env-var[]
+--
+a|`sources`, `full`
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-target-target-name-enabled]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-target-target-name-enabled[`+++quarkus.native-matrix.target."target-name".enabled+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.target."target-name".enabled+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Whether this target is built.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__ENABLED+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__ENABLED+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++true+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-target-target-name-runner]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-target-target-name-runner[`+++quarkus.native-matrix.target."target-name".runner+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.target."target-name".runner+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The runner building this target: `local`, `docker`, `ssh`, `github-actions`, or the id of a custom runner. Defaults to `local` when the target platform is the platform of the build machine.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__RUNNER+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__RUNNER+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-target-target-name-platform]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-target-target-name-platform[`+++quarkus.native-matrix.target."target-name".platform+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.target."target-name".platform+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The platform of the executable, as `<os>-<arch>` with os in `linux`, `macos`, `windows` and arch in `amd64`, `arm64`. Defaults to the target name.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__PLATFORM+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__PLATFORM+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-target-target-name-timeout]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-target-target-name-timeout[`+++quarkus.native-matrix.target."target-name".timeout+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.target."target-name".timeout+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Maximum duration of the build of this target. Defaults to `quarkus.native-matrix.timeout`.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__TIMEOUT+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__TIMEOUT+++`
+endif::add-copy-button-to-env-var[]
+--
+|link:https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/Duration.html[Duration] link:#duration-note-anchor-quarkus-native-matrix_quarkus-native-matrix[icon:question-circle[title=More information about the Duration format]]
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-target-target-name-options-option]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-target-target-name-options-option[`+++quarkus.native-matrix.target."target-name".options."option"+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.target."target-name".options."option"+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Runner specific options, e.g. `quarkus.native-matrix.target.macos-arm64.options.host=mac-mini.lan`. See the documentation of each runner.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__OPTIONS__OPTION_+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_TARGET__TARGET_NAME__OPTIONS__OPTION_+++`
+endif::add-copy-button-to-env-var[]
+--
+|Map<String,String>
+|
+
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-runner-runner-id]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-runner-runner-id[`+++quarkus.native-matrix.runner."runner-id"+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.runner."runner-id"+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Options shared by all the targets using a given runner, e.g. `quarkus.native-matrix.runner.github-actions.repository=my-org/my-app`. Target options override them.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_RUNNER__RUNNER_ID_+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_RUNNER__RUNNER_ID_+++`
+endif::add-copy-button-to-env-var[]
+--
+|Map<String,Map<String,String>>
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-only]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-only[`+++quarkus.native-matrix.only+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.only+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Only build the targets with these names. Handy on the command line, e.g. `-Dquarkus.native-matrix.only=linux-arm64,macos-arm64`.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_ONLY+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_ONLY+++`
+endif::add-copy-button-to-env-var[]
+--
+|list of string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-parallelism]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-parallelism[`+++quarkus.native-matrix.parallelism+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.parallelism+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Maximum number of targets built at the same time. Defaults to the number of targets.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_PARALLELISM+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_PARALLELISM+++`
+endif::add-copy-button-to-env-var[]
+--
+|int
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-fail-fast]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-fail-fast[`+++quarkus.native-matrix.fail-fast+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.fail-fast+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Whether to cancel the remaining targets as soon as one target fails.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FAIL_FAST+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FAIL_FAST+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++false+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-fail-on-error]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-fail-on-error[`+++quarkus.native-matrix.fail-on-error+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.fail-on-error+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Whether the Quarkus build fails when at least one target fails. When disabled, failures are only reported in the summary and the manifest.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FAIL_ON_ERROR+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FAIL_ON_ERROR+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++true+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-timeout]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-timeout[`+++quarkus.native-matrix.timeout+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.timeout+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Default maximum duration of the build of one target, including transfers and waiting for remote machines.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_TIMEOUT+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_TIMEOUT+++`
+endif::add-copy-button-to-env-var[]
+--
+|link:https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/Duration.html[Duration] link:#duration-note-anchor-quarkus-native-matrix_quarkus-native-matrix[icon:question-circle[title=More information about the Duration format]]
+|`+++2H+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-output-directory]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-output-directory[`+++quarkus.native-matrix.output-directory+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.output-directory+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Directory receiving the executables, one sub-directory per target, relative to the build output directory (`target/` with Maven, `build/` with Gradle).
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_OUTPUT_DIRECTORY+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_OUTPUT_DIRECTORY+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|`+++native-matrix+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-keep-work-directories]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-keep-work-directories[`+++quarkus.native-matrix.keep-work-directories+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.keep-work-directories+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Keep the per-target local work directories after the build, for troubleshooting.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_KEEP_WORK_DIRECTORIES+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_KEEP_WORK_DIRECTORIES+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++false+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-quiet]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-quiet[`+++quarkus.native-matrix.quiet+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.quiet+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Only log the output of `native-image` at DEBUG level. Runner messages are still logged.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_QUIET+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_QUIET+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++false+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-build]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-build[`+++quarkus.native-matrix.build+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.build+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Turns a regular package build into a matrix build, without passing `quarkus.native.enabled=true` and `quarkus.native.sources-only=true` by hand: `mvn package -Dnative-matrix` or `-Dquarkus.native-matrix.build=true`. Explicit values of these two properties win.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_BUILD+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_BUILD+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++false+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-mode]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-mode[`+++quarkus.native-matrix.mode+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.mode+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+How targets are built by default: `sources` runs only `native-image` on the builders, `full` builds the whole project there. Targets can override it.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_MODE+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_MODE+++`
+endif::add-copy-button-to-env-var[]
+--
+a|`sources`, `full`
+|`+++sources+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-platform-dependency-check]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-platform-dependency-check[`+++quarkus.native-matrix.platform-dependency-check+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.platform-dependency-check+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+What to do when a `sources` target would receive jars selected for the build machine platform (JavaFX, LWJGL, Netty native transports... picked by OS-activated Maven profiles or platform classifiers).
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_PLATFORM_DEPENDENCY_CHECK+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_PLATFORM_DEPENDENCY_CHECK+++`
+endif::add-copy-button-to-env-var[]
+--
+a|`fail`, `warn`, `off`
+|`+++fail+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-ignored-platform-dependencies]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-ignored-platform-dependencies[`+++quarkus.native-matrix.ignored-platform-dependencies+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.ignored-platform-dependencies+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Jar file names (globs with `++*++`) ignored by the platform dependency check, e.g. `++*++netty-transport-native-epoll++*++`.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_IGNORED_PLATFORM_DEPENDENCIES+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_IGNORED_PLATFORM_DEPENDENCIES+++`
+endif::add-copy-button-to-env-var[]
+--
+|list of string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-graalvm-version-check]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-graalvm-version-check[`+++quarkus.native-matrix.graalvm-version-check+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.graalvm-version-check+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+What to do when a builder runs another GraalVM `major.minor` version than the one the native sources were generated for.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_GRAALVM_VERSION_CHECK+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_GRAALVM_VERSION_CHECK+++`
+endif::add-copy-button-to-env-var[]
+--
+a|`fail`, `warn`, `off`
+|`+++warn+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-reuse-unchanged]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-reuse-unchanged[`+++quarkus.native-matrix.reuse-unchanged+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.reuse-unchanged+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Reuse the executables of the previous matrix build for the targets whose inputs (native sources, platform, runner, mode, options) did not change and whose executable is still in the output directory. Combined with a build that does not `clean`, only the failed or changed targets are rebuilt.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_REUSE_UNCHANGED+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_REUSE_UNCHANGED+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++true+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-full-build-project-directory]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-full-build-project-directory[`+++quarkus.native-matrix.full-build.project-directory+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.full-build.project-directory+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Root of the project shipped to the builders. Defaults to the directory holding `settings.gradle`, else the top-most directory of the chain of `pom.xml` files above the Quarkus module.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_PROJECT_DIRECTORY+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_PROJECT_DIRECTORY+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-full-build-build-tool]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-full-build-build-tool[`+++quarkus.native-matrix.full-build.build-tool+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.full-build.build-tool+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Build tool of the project; detected from the project root by default.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_BUILD_TOOL+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_BUILD_TOOL+++`
+endif::add-copy-button-to-env-var[]
+--
+a|`maven`, `gradle`
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-full-build-args]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-full-build-args[`+++quarkus.native-matrix.full-build.args+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.full-build.args+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Extra arguments of the build command, e.g. `-Pproduction,-Dmy.property=value`.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_ARGS+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_ARGS+++`
+endif::add-copy-button-to-env-var[]
+--
+|list of string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-full-build-skip-tests]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-full-build-skip-tests[`+++quarkus.native-matrix.full-build.skip-tests+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.full-build.skip-tests+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Whether to skip the tests in the remote builds.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_SKIP_TESTS+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_SKIP_TESTS+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++true+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-full-build-posix-command]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-full-build-posix-command[`+++quarkus.native-matrix.full-build.posix-command+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.full-build.posix-command+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Replaces the build command used on Linux and macOS builders (run with `sh` from the project root; it must produce the executable in the build output directory of the module). Requires `windows-command` too.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_POSIX_COMMAND+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_POSIX_COMMAND+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-full-build-windows-command]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-full-build-windows-command[`+++quarkus.native-matrix.full-build.windows-command+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.full-build.windows-command+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Replaces the build command used on Windows builders (run with `cmd.exe`).
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_WINDOWS_COMMAND+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_WINDOWS_COMMAND+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-full-build-excluded-directories]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-full-build-excluded-directories[`+++quarkus.native-matrix.full-build.excluded-directories+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.full-build.excluded-directories+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Directory names never shipped to the builders.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_EXCLUDED_DIRECTORIES+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_EXCLUDED_DIRECTORIES+++`
+endif::add-copy-button-to-env-var[]
+--
+|list of string
+|`+++target+++`, `+++build+++`, `+++.git+++`, `+++.idea+++`, `+++.vscode+++`, `+++.gradle+++`, `+++node_modules+++`, `+++.quarkus+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-full-build-ship-snapshots]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-full-build-ship-snapshots[`+++quarkus.native-matrix.full-build.ship-snapshots+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.full-build.ship-snapshots+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Ship the SNAPSHOT dependencies (and SNAPSHOT parent POMs) that are only installed in the local Maven repository of the build machine, so that the builders can resolve them. Maven builds need Maven 3.9 or later.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_SHIP_SNAPSHOTS+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_FULL_BUILD_SHIP_SNAPSHOTS+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++true+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-packaging-archives]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-packaging-archives[`+++quarkus.native-matrix.packaging.archives+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.packaging.archives+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Also produce one archive per target in `<output-directory>/dist`: a `.tar.gz` keeping the executable permission for Linux and macOS, a `.zip` for Windows. Archives are named `<name>-<platform>` with JReleaser platform names (`linux-x86_64`, `osx-aarch_64`, `windows-x86_64`...).
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_PACKAGING_ARCHIVES+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_PACKAGING_ARCHIVES+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++false+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-packaging-jreleaser]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-packaging-jreleaser[`+++quarkus.native-matrix.packaging.jreleaser+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.packaging.jreleaser+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Also write `<output-directory>/jreleaser.yml`, a JReleaser configuration declaring the archives as a `BINARY` distribution (implies `archives`).
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_PACKAGING_JRELEASER+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_PACKAGING_JRELEASER+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++false+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-packaging-name]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-packaging-name[`+++quarkus.native-matrix.packaging.name+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.packaging.name+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Distribution name used in archive names and in the JReleaser configuration. Defaults to the executable name without the `-runner` suffix.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_PACKAGING_NAME+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_PACKAGING_NAME+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-keystore]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-keystore[`+++quarkus.native-matrix.signing.windows.keystore+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.keystore+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The key store: a PKCS++#++12 or JKS file, or the name/URL of a cloud key store for the other store types. Setting it enables Authenticode signing.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_KEYSTORE+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_KEYSTORE+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-storetype]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-storetype[`+++quarkus.native-matrix.signing.windows.storetype+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.storetype+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The Jsign store type: `PKCS12`, `JKS`, `PKCS11`, `AZURETRUSTEDSIGNING`, `AZUREKEYVAULT`, `AWS`, `GOOGLECLOUD`, `HASHICORPVAULT`, `DIGICERTONE`, `ESIGNER`...
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_STORETYPE+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_STORETYPE+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|`+++PKCS12+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-storepass]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-storepass[`+++quarkus.native-matrix.signing.windows.storepass+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.storepass+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The key store password, or the credentials of a cloud key store. Use an expression such as `$++{++SIGNING_STOREPASS`++}++.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_STOREPASS+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_STOREPASS+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-alias]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-alias[`+++quarkus.native-matrix.signing.windows.alias+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.alias+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The alias of the signing key; the first key of the store by default.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_ALIAS+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_ALIAS+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-keypass]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-keypass[`+++quarkus.native-matrix.signing.windows.keypass+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.keypass+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The password of the key, if different from the store password.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_KEYPASS+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_KEYPASS+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-certfile]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-certfile[`+++quarkus.native-matrix.signing.windows.certfile+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.certfile+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The certificate chain file, for key stores that do not hold it (cloud key services).
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_CERTFILE+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_CERTFILE+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-timestamp]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-timestamp[`+++quarkus.native-matrix.signing.windows.timestamp+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.timestamp+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Whether to timestamp the signature, so that it stays valid after the certificate expires.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_TIMESTAMP+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_TIMESTAMP+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++true+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-tsaurl]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-tsaurl[`+++quarkus.native-matrix.signing.windows.tsaurl+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.tsaurl+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The timestamping authority.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_TSAURL+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_TSAURL+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|`+++http://timestamp.digicert.com+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-program-name]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-program-name[`+++quarkus.native-matrix.signing.windows.program-name+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.program-name+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The program name embedded in the signature.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_PROGRAM_NAME+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_PROGRAM_NAME+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-windows-program-url]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-windows-program-url[`+++quarkus.native-matrix.signing.windows.program-url+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.windows.program-url+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The program URL embedded in the signature.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_PROGRAM_URL+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_WINDOWS_PROGRAM_URL+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-macos-p12-file]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-macos-p12-file[`+++quarkus.native-matrix.signing.macos.p12-file+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.macos.p12-file+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The Developer ID Application certificate and private key, as a PKCS++#++12 file. Setting it enables macOS signing.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_P12_FILE+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_P12_FILE+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-macos-p12-password]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-macos-p12-password[`+++quarkus.native-matrix.signing.macos.p12-password+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.macos.p12-password+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The password of the PKCS++#++12 file. Use an expression such as `$++{++APPLE_P12_PASSWORD`++}++.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_P12_PASSWORD+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_P12_PASSWORD+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-macos-command]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-macos-command[`+++quarkus.native-matrix.signing.macos.command+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.macos.command+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The rcodesign command, as comma separated arguments.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_COMMAND+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_COMMAND+++`
+endif::add-copy-button-to-env-var[]
+--
+|list of string
+|`+++rcodesign+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-macos-entitlements]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-macos-entitlements[`+++quarkus.native-matrix.signing.macos.entitlements+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.macos.entitlements+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+An entitlements plist, if the application needs entitlements.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_ENTITLEMENTS+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_ENTITLEMENTS+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-macos-notarize]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-macos-notarize[`+++quarkus.native-matrix.signing.macos.notarize+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.macos.notarize+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+Whether to notarize the signed executables with Apple. Requires `api-key-file`.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_NOTARIZE+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_NOTARIZE+++`
+endif::add-copy-button-to-env-var[]
+--
+|boolean
+|`+++false+++`
+
+a|icon:lock[title=Fixed at build time] [[quarkus-native-matrix_quarkus-native-matrix-signing-macos-api-key-file]] [.property-path]##link:#quarkus-native-matrix_quarkus-native-matrix-signing-macos-api-key-file[`+++quarkus.native-matrix.signing.macos.api-key-file+++`]##
+ifdef::add-copy-button-to-config-props[]
+config_property_copy_button:+++quarkus.native-matrix.signing.macos.api-key-file+++[]
+endif::add-copy-button-to-config-props[]
+
+
+[.description]
+--
+The App Store Connect API key, as written by `rcodesign encode-app-store-connect-api-key`.
+
+
+ifdef::add-copy-button-to-env-var[]
+Environment variable: env_var_with_copy_button:+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_API_KEY_FILE+++[]
+endif::add-copy-button-to-env-var[]
+ifndef::add-copy-button-to-env-var[]
+Environment variable: `+++QUARKUS_NATIVE_MATRIX_SIGNING_MACOS_API_KEY_FILE+++`
+endif::add-copy-button-to-env-var[]
+--
+|string
+|
+
+|===
+
+ifndef::no-duration-note[]
+[NOTE]
+[id=duration-note-anchor-quarkus-native-matrix_quarkus-native-matrix]
+.About the Duration format
+====
+To write duration values, use the standard `java.time.Duration` format.
+See the link:https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/Duration.html#parse(java.lang.CharSequence)[Duration#parse() Java API documentation] for more information.
+
+You can also use a simplified format, starting with a number:
+
+* If the value is only a number, it represents time in seconds.
+* If the value is a number followed by `ms`, it represents time in milliseconds.
+
+In other cases, the simplified format is translated to the `java.time.Duration` format for parsing:
+
+* If the value is a number followed by `h`, `m`, or `s`, it is prefixed with `PT`.
+* If the value is a number followed by `d`, it is prefixed with `P`.
+====
+endif::no-duration-note[]

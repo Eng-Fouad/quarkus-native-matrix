@@ -1,0 +1,113 @@
+= Quarkus Native Matrix
+
+include::./includes/attributes.adoc[]
+
+Build Quarkus native executables for *several OS/architecture combinations from a single build*: Linux, macOS and
+Windows on amd64 and arm64, on your machine, in containers, over SSH, on GitHub Actions, or anywhere a
+xref:custom-runners.adoc[custom runner] can reach.
+
+[source,text]
+----
+$ mvn package -Dnative-matrix
+
+[io.quarkiverse.nativematrix] Native matrix summary:
+  linux-amd64    SUCCESS   2m41s  linux-amd64/my-app-1.0.0-runner        graalvm=25.0
+  linux-arm64    REUSED       0ms  linux-arm64/my-app-1.0.0-runner        host=graviton.lan
+  macos-arm64    SUCCESS   1m58s  macos-arm64/my-app-1.0.0-runner        host=mac-mini.lan signed=apple
+  windows-amd64  SUCCESS   6m12s  windows-amd64/my-app-1.0.0-runner.exe  run=https://github.com/acme/my-app/actions/runs/123 signed=authenticode
+  Output: target/native-matrix
+----
+
+== How it works
+
+GraalVM `native-image` cannot cross-compile: an executable must be built on its target platform. Everything _before_
+`native-image`, however, is platform independent. So a matrix build:
+
+. runs Quarkus once, with `quarkus.native.sources-only=true`, which produces `target/native-sources`: the runner jar,
+  `lib/`, and the `native-image` arguments;
+. hands those sources to a *runner* for each target, in parallel. The runner ships them to a machine of the target
+  platform, runs `native-image` there, and brings the executable back;
+. writes the executables to `target/native-matrix/<target>/`, next to a `native-matrix.json` manifest recording, for
+  each target, its status, duration, build mode, SHA-256, builder GraalVM version and runner metadata.
+
+The builders only need GraalVM or Mandrel: no Maven, no project sources, no agent. Targets that need more can build
+the whole project on the builder instead, see xref:build-modes.adoc[build modes].
+
+== Installation
+
+Add the extension to your application:
+
+[source,xml,subs=attributes+]
+----
+<dependency>
+    <groupId>io.quarkiverse.nativematrix</groupId>
+    <artifactId>quarkus-native-matrix</artifactId>
+    <version>{quarkus-native-matrix-version}</version>
+</dependency>
+----
+
+It has no runtime footprint: all the work happens at build time.
+
+== Configuring targets
+
+Each target has a name. When the name is a platform (`linux-amd64`, `linux-arm64`, `macos-amd64`, `macos-arm64`,
+`windows-amd64`, `windows-arm64`), the `platform` property can be omitted, and the target matching the build machine
+uses the `local` runner by default.
+
+[source,properties]
+----
+quarkus.native-matrix.target.linux-amd64.runner=docker
+
+quarkus.native-matrix.target.linux-arm64.runner=docker
+quarkus.native-matrix.target.linux-arm64.options.context=graviton        # a remote arm64 Docker engine
+
+quarkus.native-matrix.target.macos-arm64.runner=ssh
+quarkus.native-matrix.target.macos-arm64.options.host=mac-mini           # an alias of ~/.ssh/config works
+quarkus.native-matrix.target.macos-arm64.options.graalvm-home=/opt/graalvm-25
+
+quarkus.native-matrix.target.windows-amd64.runner=github-actions
+quarkus.native-matrix.target.windows-amd64.mode=full                     # e.g. for JavaFX applications
+quarkus.native-matrix.runner.github-actions.repository=acme/my-app      # shared by all github-actions targets
+quarkus.native-matrix.runner.github-actions.token=${GITHUB_TOKEN}
+
+# a target whose name is not a platform
+quarkus.native-matrix.target.raspberry.platform=linux-arm64
+quarkus.native-matrix.target.raspberry.runner=ssh
+quarkus.native-matrix.target.raspberry.options.host=pi.lan
+----
+
+Runner options set under `quarkus.native-matrix.runner."<id>".*` apply to every target using that runner; target
+options override them. See xref:runners.adoc[runners] for the options of each runner.
+
+== Building
+
+[source,shell]
+----
+mvn package -Dnative-matrix
+# only some targets
+mvn package -Dnative-matrix -Dquarkus.native-matrix.only=linux-arm64,macos-arm64
+# Gradle
+./gradlew build -Dquarkus.native-matrix.build=true
+----
+
+`-Dnative-matrix` (or `-Dquarkus.native-matrix.build=true`) is a shortcut for
+`-Dquarkus.native.enabled=true -Dquarkus.native.sources-only=true`. Explicit values of these two properties win.
+A regular native build of a project that configures targets only builds the executable of the build machine, and
+logs a reminder.
+
+Before any target starts, every target is validated: the runner exists and supports the platform and mode, its
+options are valid, the signing key stores open... so a typo in the last target does not waste an hour of build time.
+Targets then build in parallel (`quarkus.native-matrix.parallelism`), each with a timeout
+(`quarkus.native-matrix.timeout`, `2H` by default). A failing target does not stop the others unless
+`quarkus.native-matrix.fail-fast=true`, and fails the Quarkus build at the end unless
+`quarkus.native-matrix.fail-on-error=false`.
+
+== Learn more
+
+* xref:build-modes.adoc[Build modes and checks]: `sources` and `full` modes, platform dependency and GraalVM
+  version checks, how arguments are made portable.
+* xref:runners.adoc[Runners]: `local`, `docker`, `ssh`, `github-actions`.
+* xref:signing.adoc[Signing]: Authenticode and Apple Developer ID signing, notarization.
+* xref:releasing.adoc[Reruns and releasing]: reusing unchanged executables, archives, JReleaser.
+* xref:custom-runners.adoc[Writing a custom runner].
+* xref:reference.adoc[Configuration reference].

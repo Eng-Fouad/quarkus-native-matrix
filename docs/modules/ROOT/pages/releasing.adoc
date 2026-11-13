@@ -1,0 +1,66 @@
+= Reruns and releasing
+
+include::./includes/attributes.adoc[]
+
+[#reruns]
+== Rerunning only what failed
+
+The manifest records a fingerprint of the inputs of every target: the native sources (or the project files, in
+`full` mode), the platform, runner, mode, options and signing configuration. Jars are fingerprinted by content, so a
+rebuilt jar with new timestamps but the same classes does not count as a change.
+
+When a target's fingerprint is unchanged and its executable is still in the output directory with the recorded
+checksum, the executable is reused (status `REUSED`). So after a partial failure, running the build again without
+`clean` only rebuilds the failed or changed targets:
+
+[source,shell]
+----
+mvn package -Dnative-matrix
+----
+
+Set `quarkus.native-matrix.reuse-unchanged=false` to always rebuild.
+
+== Archives and JReleaser
+
+[source,properties]
+----
+quarkus.native-matrix.packaging.jreleaser=true
+quarkus.native-matrix.packaging.name=my-app     # defaults to the executable name without -runner
+----
+
+This produces:
+
+* one archive per target in `target/native-matrix/dist/`, named `<name>-<platform>` with
+  https://jreleaser.org[JReleaser] platform names (`linux-x86_64`, `linux-aarch_64`, `osx-aarch_64`,
+  `windows-x86_64`...). The executable is renamed `<name>`, plus `.exe` on Windows, next to its shared libraries.
+  Linux and macOS archives are `.tar.gz`, which keep the executable permission; Windows archives are `.zip`;
+* `target/native-matrix/jreleaser.yml`, declaring the archives as a `BINARY` distribution, to merge into your
+  JReleaser configuration.
+
+`quarkus.native-matrix.packaging.archives=true` produces the archives only. When several targets build the same
+platform, only the first one is part of the distribution; the others are archived with their target name.
+
+== The manifest
+
+`target/native-matrix/native-matrix.json` describes the last matrix build:
+
+[source,json]
+----
+{
+  "buildId" : "20261113-162907-ad553c",
+  "outputName" : "my-app-1.0.0-runner",
+  "graalvmVersion" : "25.0.4",
+  "targets" : [ {
+    "name" : "windows-amd64",
+    "platform" : "windows-amd64",
+    "runner" : "local",
+    "mode" : "sources",
+    "status" : "success",
+    "durationSeconds" : 53,
+    "executable" : "windows-amd64/my-app-1.0.0-runner.exe",
+    "metadata" : { "graalvm" : "25.0", "signed" : "authenticode" },
+    "sha256" : "f9f34ed30c28...",
+    "fingerprint" : "6f0fbd22ff65..."
+  } ]
+}
+----

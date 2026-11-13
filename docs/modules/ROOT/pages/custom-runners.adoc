@@ -1,0 +1,93 @@
+= Writing a custom runner
+
+include::./includes/attributes.adoc[]
+
+Runners implement a small SPI that does not depend on Quarkus:
+
+[source,xml,subs=attributes+]
+----
+<dependency>
+    <groupId>io.quarkiverse.nativematrix</groupId>
+    <artifactId>quarkus-native-matrix-spi</artifactId>
+    <version>{quarkus-native-matrix-version}</version>
+</dependency>
+----
+
+[source,java]
+----
+public class Ec2Runner implements NativeBuildRunner {
+
+    @Override
+    public String id() {
+        return "aws-ec2"; // quarkus.native-matrix.target.x.runner=aws-ec2
+    }
+
+    @Override
+    public boolean supports(Platform platform) {
+        return platform.os() == Platform.Os.LINUX;
+    }
+
+    @Override
+    public boolean supports(BuildMode mode) {
+        return true; // SOURCES only by default
+    }
+
+    @Override
+    public void validate(NativeBuildRequest request) {
+        request.options().require("instance-id"); // runs for every target before any build starts
+    }
+
+    @Override
+    public NativeBuildResult build(NativeBuildRequest request, BuildContext context) throws Exception {
+        Path zip;
+        String command;
+        if (request.mode() == BuildMode.FULL) {
+            FullBuild full = request.requireFullBuild();
+            zip = full.zip(context.workDirectory().resolve("project.zip"), Map.of(), request.platform());
+            command = full.script(request.platform(), request.outputName()); // writes output/
+        } else {
+            zip = Archives.zip(request.nativeSourcesDirectory(), context.workDirectory().resolve("sources.zip"),
+                    Map.of(ArgFile.DEFAULT_NAME, ArgFile.render(request.nativeImageArgs()).getBytes(UTF_8)));
+            command = "mkdir -p output && native-image @" + ArgFile.DEFAULT_NAME; // writes output/
+        }
+        // upload and unzip, pass the output of `native-image --version` to context.reportNativeImageVersion(...),
+        // run the command, stream lines to context.log().output(...), download output/ into request.outputDirectory()
+        return NativeBuildResult.of(request.outputDirectory().resolve(request.executableName()));
+    }
+}
+----
+
+Register the class in `META-INF/services/io.quarkiverse.nativematrix.spi.NativeBuildRunner`, in a jar on the build
+class path:
+
+* preferably the deployment module of a small Quarkus extension, which keeps it off the runtime class path;
+* or a plain dependency of the application.
+
+Implementations need a public no-argument constructor and must be thread safe: the same instance builds every target
+that selects it, in parallel.
+
+== What the SPI provides
+
+`NativeBuildRequest`::
+The platform and mode; the read-only native sources; the `native-image` arguments, already adjusted for the target,
+with `-o` pointing to `output/<name>` (`native-image` does not create that directory: create it first); the
+`FullBuild` in `full` mode; the expected GraalVM version; the builder image; the merged options; the output
+directory; the timeout.
+
+`BuildContext`::
+A logger prefixing lines with the target name, a private work directory, the GraalVM version check
+(`reportNativeImageVersion`), and cancellation. The build thread is interrupted on timeout and on fail-fast, so clean
+up remote resources in `finally` blocks.
+
+`FullBuild`::
+The project to ship (`stage`, `zip`, honoring the excluded directories, the shipped SNAPSHOTs and the line endings of
+shell scripts) and the `script` that builds it and copies the executable and its shared libraries to `output/`.
+
+Helpers::
+`ArgFile` writes argument files that survive the quoting rules of every shell between the runner and
+`native-image`; `Archives`, `Processes` (streamed, interruptible processes), `LineOutputStream` and `FileTrees`.
+
+Options::
+`request.options()` gives typed access (`require`, `getBoolean`, `getDuration`, `getList`...) to the options of the
+target, merged with `quarkus.native-matrix.runner."<id>".*`. Configuration expressions such as `${TOKEN}` are already
+expanded.

@@ -1,0 +1,7 @@
+= Configuration reference
+
+include::./includes/attributes.adoc[]
+
+All the properties are build time properties.
+
+include::includes/quarkus-native-matrix.adoc[leveloffset=+1, opts=optional]
