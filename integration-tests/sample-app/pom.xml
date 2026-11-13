@@ -38,6 +38,20 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <profile>
+            <!-- end-to-end check of the SNAPSHOT shipping of full mode: install a greeting-lib 1.0-SNAPSHOT locally first -->
+            <id>e2e-snapshot</id>
+            <dependencies>
+                <dependency>
+                    <groupId>io.quarkiverse.nativematrix.it</groupId>
+                    <artifactId>greeting-lib</artifactId>
+                    <version>1.0-SNAPSHOT</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+
     <build>
         <plugins>
             <plugin>

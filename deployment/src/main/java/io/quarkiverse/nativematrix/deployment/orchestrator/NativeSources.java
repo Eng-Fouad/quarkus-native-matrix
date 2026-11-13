@@ -18,6 +18,10 @@ public record NativeSources(Path directory, List<String> args, String outputName
 
     public static final String ARGS_FILE = "native-image.args";
 
+    public NativeSources withArgs(List<String> newArgs) {
+        return new NativeSources(directory, List.copyOf(newArgs), outputName, runnerJar, graalVmVersion, builderImage);
+    }
+
     public static NativeSources read(Path directory) throws IOException {
         Path argsFile = directory.resolve(ARGS_FILE);
         if (!Files.isRegularFile(argsFile)) {

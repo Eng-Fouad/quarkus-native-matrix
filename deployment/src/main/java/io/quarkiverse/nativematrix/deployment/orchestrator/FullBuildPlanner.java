@@ -1,9 +1,13 @@
 package io.quarkiverse.nativematrix.deployment.orchestrator;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -37,7 +41,14 @@ public final class FullBuildPlanner {
      * User settings, see {@code quarkus.native-matrix.full-build.*}.
      */
     public record Settings(Optional<Path> projectDirectory, Optional<BuildTool> buildTool, Optional<String> posixCommand,
-            Optional<String> windowsCommand, List<String> args, boolean skipTests, Set<String> excludedDirectories) {
+            Optional<String> windowsCommand, List<String> args, boolean skipTests, Set<String> excludedDirectories,
+            boolean shipSnapshots, List<LocalSnapshots.Artifact> dependencies, Optional<Path> localRepository) {
+
+        public Settings(Optional<Path> projectDirectory, Optional<BuildTool> buildTool, Optional<String> posixCommand,
+                Optional<String> windowsCommand, List<String> args, boolean skipTests, Set<String> excludedDirectories) {
+            this(projectDirectory, buildTool, posixCommand, windowsCommand, args, skipTests, excludedDirectories, false,
+                    List.of(), Optional.empty());
+        }
     }
 
     private FullBuildPlanner() {
@@ -57,6 +68,23 @@ public final class FullBuildPlanner {
         }
         String moduleRelative = slashes(root.relativize(module));
         String executableDirectory = slashes(root.relativize(output));
+
+        // what the builder could not download: SNAPSHOT dependencies and parent POMs only installed on this machine
+        Path repository = settings.localRepository().orElseGet(() -> settings.dependencies().stream()
+                .map(LocalSnapshots::repositoryRoot).flatMap(Optional::stream).findFirst()
+                .orElseGet(LocalSnapshots::defaultRepository));
+        Map<String, Path> additionalFiles = new LinkedHashMap<>();
+        boolean mavenProject = Files.isRegularFile(module.resolve("pom.xml"));
+        if (mavenProject) {
+            checkParents(module.resolve("pom.xml"), root, repository, settings.shipSnapshots(), additionalFiles);
+        }
+        if (settings.shipSnapshots()) {
+            try {
+                additionalFiles.putAll(LocalSnapshots.collect(settings.dependencies(), root));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
 
         String posix;
         String windows;
@@ -84,6 +112,22 @@ public final class FullBuildPlanner {
                 }
             }
             arguments.addAll(NATIVE_PROPERTIES);
+            if (!additionalFiles.isEmpty()) {
+                if (tool == BuildTool.MAVEN) {
+                    // Maven 3.9+: extra read-only local repositories
+                    arguments.add("-Dmaven.repo.local.tail=" + LocalSnapshots.REPOSITORY_DIRECTORY);
+                } else {
+                    Path init = output.resolve("native-matrix-full-build").resolve("repository.init.gradle");
+                    try {
+                        Files.createDirectories(init.getParent());
+                        Files.writeString(init, LocalSnapshots.gradleInitScript());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    additionalFiles.put(LocalSnapshots.GRADLE_INIT_SCRIPT, init);
+                    arguments.addAll(List.of("--init-script", LocalSnapshots.GRADLE_INIT_SCRIPT));
+                }
+            }
             arguments.addAll(settings.args());
             String args = String.join(" ", arguments);
             boolean maven = tool == BuildTool.MAVEN;
@@ -97,7 +141,56 @@ public final class FullBuildPlanner {
             posix = settings.posixCommand().orElse(posixLauncher + " " + args);
             windows = settings.windowsCommand().orElse(windowsLauncher + " " + args);
         }
-        return new FullBuild(root, posix, windows, executableDirectory, settings.excludedDirectories());
+        return new FullBuild(root, posix, windows, executableDirectory, settings.excludedDirectories(), additionalFiles);
+    }
+
+    /**
+     * Follows the {@code <parent>} chain of the module: local parents must be inside the shipped project directory,
+     * SNAPSHOT parents resolved from the local repository are shipped with the project.
+     */
+    static void checkParents(Path modulePom, Path root, Path repository, boolean shipSnapshots,
+            Map<String, Path> additionalFiles) {
+        Path pom = modulePom;
+        for (int depth = 0; depth < 50; depth++) {
+            Optional<Poms.Parent> parent = Poms.parent(pom);
+            if (parent.isEmpty()) {
+                return;
+            }
+            Poms.Parent p = parent.get();
+            Path pomDir = pom.getParent();
+            Optional<Path> local = p.relativePath().map(r -> {
+                Path candidate = pomDir.resolve(r).normalize();
+                return Files.isDirectory(candidate) ? candidate.resolve("pom.xml") : candidate;
+            }).filter(Files::isRegularFile).filter(c -> p.artifactId().equals(Poms.artifactId(c)));
+            if (local.isPresent()) {
+                Path parentPom = local.get().toAbsolutePath().normalize();
+                if (!parentPom.startsWith(root)) {
+                    throw new IllegalArgumentException("The parent POM " + parentPom + " (" + p.groupId() + ":"
+                            + p.artifactId() + ") is outside the project directory " + root
+                            + " shipped to the builders; set quarkus.native-matrix.full-build.project-directory to "
+                            + commonAncestor(root, parentPom.getParent()));
+                }
+                pom = parentPom;
+                continue;
+            }
+            // resolved from a repository: only a SNAPSHOT installed on this machine needs to be shipped
+            if (shipSnapshots && p.version().endsWith("-SNAPSHOT")) {
+                try {
+                    LocalSnapshots.addPom(repository, p.groupId(), p.artifactId(), p.version(), additionalFiles);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            return;
+        }
+    }
+
+    private static Path commonAncestor(Path a, Path b) {
+        Path ancestor = a;
+        while (ancestor != null && !b.startsWith(ancestor)) {
+            ancestor = ancestor.getParent();
+        }
+        return ancestor == null ? b : ancestor;
     }
 
     /**

@@ -14,12 +14,16 @@ import org.jboss.logging.Logger;
 
 import io.quarkiverse.nativematrix.deployment.orchestrator.CheckPolicy;
 import io.quarkiverse.nativematrix.deployment.orchestrator.FullBuildPlanner;
+import io.quarkiverse.nativematrix.deployment.orchestrator.LocalSnapshots;
 import io.quarkiverse.nativematrix.deployment.orchestrator.MatrixTarget;
 import io.quarkiverse.nativematrix.deployment.orchestrator.NativeMatrixOrchestrator;
 import io.quarkiverse.nativematrix.deployment.orchestrator.NativeSources;
 import io.quarkiverse.nativematrix.deployment.orchestrator.Packager;
 import io.quarkiverse.nativematrix.deployment.orchestrator.RunnerRegistry;
 import io.quarkiverse.nativematrix.deployment.runners.LocalRunner;
+import io.quarkiverse.nativematrix.deployment.signing.AppleSigner;
+import io.quarkiverse.nativematrix.deployment.signing.AuthenticodeSigner;
+import io.quarkiverse.nativematrix.deployment.signing.ExecutableSigner;
 import io.quarkiverse.nativematrix.spi.BuildMode;
 import io.quarkiverse.nativematrix.spi.FullBuild;
 import io.quarkiverse.nativematrix.spi.Platform;
@@ -30,8 +34,10 @@ import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.pkg.NativeConfig;
 import io.quarkus.deployment.pkg.builditem.ArtifactResultBuildItem;
 import io.quarkus.deployment.pkg.builditem.BuildSystemTargetBuildItem;
+import io.quarkus.deployment.pkg.builditem.CurateOutcomeBuildItem;
 import io.quarkus.deployment.pkg.steps.NativeSourcesBuild;
 import io.quarkus.deployment.sbom.SbomBuildItem;
+import io.quarkus.maven.dependency.ResolvedDependency;
 
 class NativeMatrixProcessor {
 
@@ -56,7 +62,7 @@ class NativeMatrixProcessor {
     @BuildStep(onlyIf = NativeSourcesBuild.class)
     @Produce(SbomBuildItem.class)
     void buildMatrix(NativeMatrixConfig config, BuildSystemTargetBuildItem buildSystemTarget,
-            List<ArtifactResultBuildItem> artifacts) {
+            List<ArtifactResultBuildItem> artifacts, CurateOutcomeBuildItem curateOutcome) {
         if (!config.enabled() || config.target().isEmpty()) {
             return;
         }
@@ -73,8 +79,9 @@ class NativeMatrixProcessor {
         try {
             NativeSources sources = NativeSources.read(outputDir.resolve("native-sources"));
             FullBuild fullBuild = targets.stream().anyMatch(t -> t.mode() == BuildMode.FULL)
-                    ? planFullBuild(config, outputDir)
+                    ? planFullBuild(config, outputDir, dependencies(curateOutcome))
                     : null;
+            List<ExecutableSigner> signers = signers(config.signing(), targets);
             Path matrixDir = outputDir.resolve(config.outputDirectory());
             NativeMatrixOrchestrator orchestrator = new NativeMatrixOrchestrator(RunnerRegistry.discover(),
                     new NativeMatrixOrchestrator.Settings(matrixDir,
@@ -82,7 +89,7 @@ class NativeMatrixProcessor {
                             config.keepWorkDirectories(), config.quiet(), Platform.host(),
                             policy(config.platformDependencyCheck()),
                             config.ignoredPlatformDependencies().orElse(List.of()),
-                            policy(config.graalvmVersionCheck()), config.reuseUnchanged()));
+                            policy(config.graalvmVersionCheck()), config.reuseUnchanged(), signers));
             NativeMatrixOrchestrator.MatrixResult result = orchestrator.run(sources, targets, fullBuild);
 
             NativeMatrixConfig.PackageConfig packaging = config.packaging();
@@ -117,7 +124,7 @@ class NativeMatrixProcessor {
         }
     }
 
-    static FullBuild planFullBuild(NativeMatrixConfig config, Path outputDir) {
+    static FullBuild planFullBuild(NativeMatrixConfig config, Path outputDir, List<LocalSnapshots.Artifact> dependencies) {
         NativeMatrixConfig.FullBuildConfig c = config.fullBuild();
         if (c.posixCommand().isPresent() != c.windowsCommand().isPresent()) {
             throw new IllegalArgumentException("Set both quarkus.native-matrix.full-build.posix-command and"
@@ -127,10 +134,59 @@ class NativeMatrixProcessor {
                 c.projectDirectory().map(Path::of),
                 c.buildTool().map(t -> FullBuildPlanner.BuildTool.valueOf(t.name())),
                 c.posixCommand(), c.windowsCommand(), c.args().orElse(List.of()), c.skipTests(),
-                Set.copyOf(c.excludedDirectories()));
+                Set.copyOf(c.excludedDirectories()), c.shipSnapshots(), dependencies, java.util.Optional.empty());
         FullBuild plan = FullBuildPlanner.plan(outputDir, settings);
         LOG.debugf("Full build of %s: %s", plan.projectDirectory(), plan.posixCommand());
+        long snapshots = plan.additionalFiles().keySet().stream().filter(k -> k.endsWith(".pom")).count();
+        if (snapshots > 0) {
+            LOG.infof("Shipping %d SNAPSHOT artifact(s) installed on this machine with the project (full mode)",
+                    snapshots);
+        }
         return plan;
+    }
+
+    static List<LocalSnapshots.Artifact> dependencies(CurateOutcomeBuildItem curateOutcome) {
+        List<LocalSnapshots.Artifact> result = new ArrayList<>();
+        for (ResolvedDependency d : curateOutcome.getApplicationModel().getDependencies()) {
+            if (!d.isSnapshot() || d.getWorkspaceModule() != null || d.getResolvedPaths().isEmpty()) {
+                continue;
+            }
+            Path file = d.getResolvedPaths().iterator().next();
+            if (java.nio.file.Files.isRegularFile(file)) {
+                result.add(new LocalSnapshots.Artifact(d.getGroupId(), d.getArtifactId(), d.getVersion(), file));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Creates the signers and checks their configuration, so that a wrong password fails the build before any target
+     * is built.
+     */
+    static List<ExecutableSigner> signers(NativeMatrixConfig.SigningConfig signing, List<MatrixTarget> targets) {
+        List<ExecutableSigner> signers = new ArrayList<>();
+        NativeMatrixConfig.WindowsSigningConfig w = signing.windows();
+        boolean windows = targets.stream().anyMatch(t -> t.platform().os() == Platform.Os.WINDOWS);
+        if (w.keystore().isPresent() && windows) {
+            AuthenticodeSigner signer = new AuthenticodeSigner(w.keystore().get(), w.storetype(), w.storepass(),
+                    w.alias(), w.keypass(), w.certfile(), w.timestamp(), w.tsaurl(), w.programName(), w.programUrl());
+            try {
+                signer.loadKeyStore();
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Cannot open the Authenticode key store " + w.keystore().get()
+                        + " (quarkus.native-matrix.signing.windows.*): " + e.getMessage(), e);
+            }
+            signers.add(signer);
+        }
+        NativeMatrixConfig.MacosSigningConfig m = signing.macos();
+        boolean macos = targets.stream().anyMatch(t -> t.platform().os() == Platform.Os.MACOS);
+        if (m.p12File().isPresent() && macos) {
+            AppleSigner signer = new AppleSigner(m.command(), m.p12File().get(), m.p12Password(), m.entitlements(),
+                    m.notarize(), m.apiKeyFile());
+            signer.validate();
+            signers.add(signer);
+        }
+        return signers;
     }
 
     static CheckPolicy policy(NativeMatrixConfig.Check check) {

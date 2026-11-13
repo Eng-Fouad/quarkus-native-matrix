@@ -38,6 +38,11 @@
             <groupId>net.i2p.crypto</groupId>
             <artifactId>eddsa</artifactId>
         </dependency>
+        <!-- Authenticode signing -->
+        <dependency>
+            <groupId>net.jsign</groupId>
+            <artifactId>jsign-core</artifactId>
+        </dependency>
         <!-- github-actions runner -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

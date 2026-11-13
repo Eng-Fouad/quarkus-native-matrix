@@ -93,6 +93,87 @@ class FullBuildPlannerTest {
     }
 
     @Test
+    void shipsSnapshotsInstalledOnlyOnThisMachine() throws Exception {
+        Path repo = Files.createDirectories(tmp.resolve("m2/repository"));
+        Path libDir = Files.createDirectories(repo.resolve("com/acme/lib/1.0-SNAPSHOT"));
+        Path libJar = Files.writeString(libDir.resolve("lib-1.0-SNAPSHOT.jar"), "jar");
+        Files.writeString(libDir.resolve("lib-1.0-SNAPSHOT.pom"), """
+                <project><parent><groupId>com.acme</groupId><artifactId>acme-parent</artifactId>
+                <version>2.0-SNAPSHOT</version></parent><artifactId>lib</artifactId></project>""");
+        Files.writeString(libDir.resolve("lib-1.0-SNAPSHOT-sources.txt"), "not shipped");
+        Path parentDir = Files.createDirectories(repo.resolve("com/acme/acme-parent/2.0-SNAPSHOT"));
+        Files.writeString(parentDir.resolve("acme-parent-2.0-SNAPSHOT.pom"), "<project/>");
+        Path released = Files.createDirectories(repo.resolve("org/released/r/1.0"));
+        Path releasedJar = Files.writeString(released.resolve("r-1.0.jar"), "jar");
+
+        Path project = Files.createDirectories(tmp.resolve("app"));
+        Files.writeString(project.resolve("pom.xml"), "<project><artifactId>app</artifactId></project>");
+        Files.createDirectories(project.resolve(".mvn"));
+        Path moduleJar = Files.writeString(project.resolve("module.jar"), "reactor module");
+
+        FullBuild plan = FullBuildPlanner.plan(project.resolve("target"), new FullBuildPlanner.Settings(
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of(), true,
+                FullBuildPlanner.DEFAULT_EXCLUDES, true, List.of(
+                        new LocalSnapshots.Artifact("com.acme", "lib", "1.0-SNAPSHOT", libJar),
+                        new LocalSnapshots.Artifact("org.released", "r", "1.0", releasedJar),
+                        new LocalSnapshots.Artifact("com.acme", "module", "1.0-SNAPSHOT", moduleJar)),
+                Optional.empty()));
+
+        assertThat(plan.additionalFiles()).containsOnlyKeys(
+                ".native-matrix/repository/com/acme/lib/1.0-SNAPSHOT/lib-1.0-SNAPSHOT.jar",
+                ".native-matrix/repository/com/acme/lib/1.0-SNAPSHOT/lib-1.0-SNAPSHOT.pom",
+                ".native-matrix/repository/com/acme/acme-parent/2.0-SNAPSHOT/acme-parent-2.0-SNAPSHOT.pom");
+        assertThat(plan.posixCommand()).contains("-Dmaven.repo.local.tail=.native-matrix/repository");
+        Path staged = plan.stage(tmp.resolve("staged"), Platform.parse("linux-amd64"));
+        assertThat(staged.resolve(".native-matrix/repository/com/acme/lib/1.0-SNAPSHOT/lib-1.0-SNAPSHOT.jar"))
+                .hasContent("jar");
+
+        // nothing to ship: no tail repository
+        FullBuild none = FullBuildPlanner.plan(project.resolve("target"), new FullBuildPlanner.Settings(
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of(), true,
+                FullBuildPlanner.DEFAULT_EXCLUDES, false, List.of(), Optional.of(repo)));
+        assertThat(none.additionalFiles()).isEmpty();
+        assertThat(none.posixCommand()).doesNotContain("repo.local.tail");
+    }
+
+    @Test
+    void gradleBuildsGetAnInitScriptForTheShippedRepository() throws Exception {
+        Path repo = Files.createDirectories(tmp.resolve("m2/repository/com/acme/lib/1.0-SNAPSHOT"));
+        Path jar = Files.writeString(repo.resolve("lib-1.0-SNAPSHOT.jar"), "jar");
+        Path root = Files.createDirectories(tmp.resolve("g"));
+        Files.writeString(root.resolve("settings.gradle"), "");
+        FullBuild plan = FullBuildPlanner.plan(root.resolve("build"), new FullBuildPlanner.Settings(
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), List.of(), true,
+                FullBuildPlanner.DEFAULT_EXCLUDES, true,
+                List.of(new LocalSnapshots.Artifact("com.acme", "lib", "1.0-SNAPSHOT", jar)), Optional.empty()));
+        assertThat(plan.posixCommand()).contains("--init-script .native-matrix/repository.init.gradle");
+        assertThat(plan.additionalFiles().get(".native-matrix/repository.init.gradle")).content()
+                .contains("maven { url = uri(\"${rootDir}/.native-matrix/repository\") }");
+    }
+
+    @Test
+    void rejectsParentPomsOutsideTheProject() throws Exception {
+        Path outside = Files.createDirectories(tmp.resolve("company-parent"));
+        Files.writeString(outside.resolve("pom.xml"), "<project><artifactId>company-parent</artifactId></project>");
+        Path project = Files.createDirectories(tmp.resolve("apps/app"));
+        Files.createDirectories(project.resolve(".mvn"));
+        Files.writeString(project.resolve("pom.xml"), """
+                <project><parent><groupId>com.acme</groupId><artifactId>company-parent</artifactId><version>1</version>
+                <relativePath>../../company-parent/pom.xml</relativePath></parent><artifactId>app</artifactId></project>""");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> FullBuildPlanner.plan(project.resolve("target"),
+                defaults())).hasMessageContaining("The parent POM").hasMessageContaining("is outside the project directory")
+                .hasMessageContaining("project-directory to " + tmp.toAbsolutePath().normalize());
+
+        // an empty relativePath means "from the repositories": nothing to check
+        Files.writeString(project.resolve("pom.xml"), """
+                <project><parent><groupId>com.acme</groupId><artifactId>company-parent</artifactId><version>1</version>
+                <relativePath/></parent><artifactId>app</artifactId></project>""");
+        assertThat(FullBuildPlanner.plan(project.resolve("target"), defaults()).projectDirectory())
+                .isEqualTo(project.toAbsolutePath().normalize());
+    }
+
+    @Test
     void plansAGradleModuleBuild() throws Exception {
         Path root = Files.createDirectories(tmp.resolve("g"));
         Files.writeString(root.resolve("settings.gradle.kts"), "include(\"app\")");

@@ -148,6 +148,121 @@ public interface NativeMatrixConfig {
      */
     PackageConfig packaging();
 
+    /**
+     * Signing of the executables. It runs on the build machine once an executable is built, whatever the runner, so
+     * the signing keys never leave it.
+     */
+    SigningConfig signing();
+
+    interface SigningConfig {
+
+        /**
+         * Authenticode signing of the Windows executables, with Jsign.
+         */
+        WindowsSigningConfig windows();
+
+        /**
+         * Signing (and notarization) of the macOS executables, with rcodesign.
+         */
+        MacosSigningConfig macos();
+    }
+
+    interface WindowsSigningConfig {
+
+        /**
+         * The key store: a PKCS#12 or JKS file, or the name/URL of a cloud key store for the other store types. Setting
+         * it enables Authenticode signing.
+         */
+        Optional<String> keystore();
+
+        /**
+         * The Jsign store type: {@code PKCS12}, {@code JKS}, {@code PKCS11}, {@code AZURETRUSTEDSIGNING},
+         * {@code AZUREKEYVAULT}, {@code AWS}, {@code GOOGLECLOUD}, {@code HASHICORPVAULT}, {@code DIGICERTONE},
+         * {@code ESIGNER}...
+         */
+        @WithDefault("PKCS12")
+        String storetype();
+
+        /**
+         * The key store password, or the credentials of a cloud key store. Use an expression such as
+         * {@code ${SIGNING_STOREPASS}}.
+         */
+        Optional<String> storepass();
+
+        /**
+         * The alias of the signing key; the first key of the store by default.
+         */
+        Optional<String> alias();
+
+        /**
+         * The password of the key, if different from the store password.
+         */
+        Optional<String> keypass();
+
+        /**
+         * The certificate chain file, for key stores that do not hold it (cloud key services).
+         */
+        Optional<String> certfile();
+
+        /**
+         * Whether to timestamp the signature, so that it stays valid after the certificate expires.
+         */
+        @WithDefault("true")
+        boolean timestamp();
+
+        /**
+         * The timestamping authority.
+         */
+        @WithDefault("http://timestamp.digicert.com")
+        String tsaurl();
+
+        /**
+         * The program name embedded in the signature.
+         */
+        Optional<String> programName();
+
+        /**
+         * The program URL embedded in the signature.
+         */
+        Optional<String> programUrl();
+    }
+
+    interface MacosSigningConfig {
+
+        /**
+         * The Developer ID Application certificate and private key, as a PKCS#12 file. Setting it enables macOS
+         * signing.
+         */
+        Optional<String> p12File();
+
+        /**
+         * The password of the PKCS#12 file. Use an expression such as {@code ${APPLE_P12_PASSWORD}}.
+         */
+        Optional<String> p12Password();
+
+        /**
+         * The rcodesign command, as comma separated arguments.
+         */
+        @WithDefault("rcodesign")
+        List<String> command();
+
+        /**
+         * An entitlements plist, if the application needs entitlements.
+         */
+        Optional<String> entitlements();
+
+        /**
+         * Whether to notarize the signed executables with Apple. Requires {@code api-key-file}.
+         */
+        @WithDefault("false")
+        boolean notarize();
+
+        /**
+         * The App Store Connect API key, as written by {@code rcodesign encode-app-store-connect-api-key}.
+         */
+        Optional<String> apiKeyFile();
+    }
+
     enum Mode {
         /** Run only {@code native-image} on the builders. */
         SOURCES,
@@ -205,6 +320,13 @@ public interface NativeMatrixConfig {
          */
         @WithDefault("target,build,.git,.idea,.vscode,.gradle,node_modules,.quarkus")
         List<String> excludedDirectories();
+
+        /**
+         * Ship the SNAPSHOT dependencies (and SNAPSHOT parent POMs) that are only installed in the local Maven
+         * repository of the build machine, so that the builders can resolve them. Maven builds need Maven 3.9 or later.
+         */
+        @WithDefault("true")
+        boolean shipSnapshots();
 
         enum BuildTool {
             /** Maven ({@code mvnw} when present). */

@@ -27,7 +27,6 @@ public final class ArgsAdjuster {
     public static List<String> adjust(List<String> args, Platform target, Path nativeSourcesDirectory,
             Consumer<String> warnings) {
         List<String> result = new ArrayList<>(args.size());
-        String localRoot = nativeSourcesDirectory.toAbsolutePath().toString();
         for (String arg : args) {
             if (arg.startsWith("--enable-monitoring=") && target.os() == Platform.Os.WINDOWS) {
                 // Quarkus adds heapdump unless the build machine runs Windows; native-image rejects it on Windows
@@ -43,18 +42,9 @@ public final class ArgsAdjuster {
                 warnings.accept("Ignoring " + arg + ": it is only supported on Linux");
                 continue;
             }
-            if (arg.contains(localRoot) || looksLikeLocalAbsolutePath(arg)) {
-                warnings.accept("Argument '" + arg + "' references a path of the build machine; it will only work if"
-                        + " the same path exists where the executable is built");
-            }
+            // paths of the build machine are made portable by PathRelocator beforehand
             result.add(arg);
         }
         return result;
-    }
-
-    private static boolean looksLikeLocalAbsolutePath(String arg) {
-        return arg.startsWith("-H:ConfigurationFileDirectories=")
-                || arg.startsWith("-H:ReflectionConfigurationFiles=")
-                || arg.startsWith("-H:ResourceConfigurationFiles=");
     }
 }
