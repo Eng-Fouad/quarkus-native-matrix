@@ -49,6 +49,14 @@ public interface NativeBuildRunner {
     }
 
     /**
+     * Whether this runner implements the given build mode. Runners support {@link BuildMode#SOURCES} by default;
+     * supporting {@link BuildMode#FULL} means following the contract of {@link FullBuild}.
+     */
+    default boolean supports(BuildMode mode) {
+        return mode == BuildMode.SOURCES;
+    }
+
+    /**
      * Validates the request before any target starts building, e.g. checks that required options are present. Every
      * target of the matrix is validated first, so a typo in the last target does not waste an hour of build time.
      *

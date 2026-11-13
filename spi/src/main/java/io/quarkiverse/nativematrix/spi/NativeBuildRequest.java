@@ -31,6 +31,8 @@ public final class NativeBuildRequest {
     private final RunnerOptions options;
     private final Path outputDirectory;
     private final Duration timeout;
+    private final BuildMode mode;
+    private final Optional<FullBuild> fullBuild;
 
     private NativeBuildRequest(Builder b) {
         this.buildId = Objects.requireNonNull(b.buildId, "buildId");
@@ -44,6 +46,11 @@ public final class NativeBuildRequest {
         this.options = b.options == null ? RunnerOptions.empty() : b.options;
         this.outputDirectory = Objects.requireNonNull(b.outputDirectory, "outputDirectory");
         this.timeout = b.timeout == null ? Duration.ofHours(2) : b.timeout;
+        this.mode = b.mode == null ? BuildMode.SOURCES : b.mode;
+        this.fullBuild = Optional.ofNullable(b.fullBuild);
+        if (mode == BuildMode.FULL && fullBuild.isEmpty()) {
+            throw new IllegalArgumentException("A FULL mode request needs a FullBuild");
+        }
     }
 
     public static Builder builder() {
@@ -63,7 +70,32 @@ public final class NativeBuildRequest {
         b.options = options;
         b.outputDirectory = outputDirectory;
         b.timeout = timeout;
+        b.mode = mode;
+        b.fullBuild = fullBuild.orElse(null);
         return b;
+    }
+
+    /**
+     * @return how this target is built; runners only receive modes they {@link NativeBuildRunner#supports(BuildMode)
+     *         support}
+     */
+    public BuildMode mode() {
+        return mode;
+    }
+
+    /**
+     * @return the project and commands to use in {@link BuildMode#FULL} mode; present only in that mode
+     */
+    public Optional<FullBuild> fullBuild() {
+        return fullBuild;
+    }
+
+    /**
+     * @return the full build of this request
+     * @throws IllegalStateException if the request is not in {@link BuildMode#FULL} mode
+     */
+    public FullBuild requireFullBuild() {
+        return fullBuild.orElseThrow(() -> new IllegalStateException(this + " is not a full build"));
     }
 
     /**
@@ -110,7 +142,8 @@ public final class NativeBuildRequest {
     /**
      * The {@code native-image} arguments, already adjusted for the target platform, writing the executable to
      * {@code output/<outputName>} relative to the native sources directory. They must be passed to {@code native-image}
-     * from within (a copy of) the native sources directory. Prefer writing them to an argument file with
+     * from within (a copy of) the native sources directory, after creating the {@value #DEFAULT_OUTPUT_DIR} directory:
+     * {@code native-image} refuses to write to a directory that does not exist. Prefer writing them to an argument file with
      * {@link io.quarkiverse.nativematrix.spi.support.ArgFile} rather than passing them on a command line: they may
      * contain characters that shells interpret.
      */
@@ -185,7 +218,7 @@ public final class NativeBuildRequest {
 
     @Override
     public String toString() {
-        return "NativeBuildRequest[" + targetName + " (" + platform + ")]";
+        return "NativeBuildRequest[" + targetName + " (" + platform + ", " + mode.name().toLowerCase() + ")]";
     }
 
     public static final class Builder {
@@ -200,8 +233,20 @@ public final class NativeBuildRequest {
         private RunnerOptions options;
         private Path outputDirectory;
         private Duration timeout;
+        private BuildMode mode;
+        private FullBuild fullBuild;
 
         private Builder() {
+        }
+
+        public Builder mode(BuildMode mode) {
+            this.mode = mode;
+            return this;
+        }
+
+        public Builder fullBuild(FullBuild fullBuild) {
+            this.fullBuild = fullBuild;
+            return this;
         }
 
         public Builder buildId(String buildId) {

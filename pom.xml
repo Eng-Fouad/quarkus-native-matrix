@@ -77,6 +77,16 @@
         </dependencies>
     </dependencyManagement>
 
+    <profiles>
+        <profile>
+            <!-- real native builds: mvn -Pit package -Dnative-matrix (see the README) -->
+            <id>it</id>
+            <modules>
+                <module>integration-tests/sample-app</module>
+            </modules>
+        </profile>
+    </profiles>
+
     <build>
         <pluginManagement>
             <plugins>

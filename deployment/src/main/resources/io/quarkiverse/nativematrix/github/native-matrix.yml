@@ -3,6 +3,8 @@
 # Commit this file as .github/workflows/native-matrix.yml on the branch used by the github-actions runner
 # (the default branch unless the 'ref' option is set). The extension dispatches it once per target and
 # downloads the produced executable; you never need to trigger it by hand.
+#
+# native-matrix-workflow-version: 2
 name: native-matrix
 run-name: "native-matrix ${{ inputs.target }} ${{ inputs.correlation_id }}"
 
@@ -22,7 +24,7 @@ on:
         required: true
         type: string
       sources_url:
-        description: API URL of the zipped native sources (draft release asset)
+        description: API URL of the zipped native sources or project (draft release asset)
         required: true
         type: string
       java_version:
@@ -38,9 +40,19 @@ on:
         required: false
         default: "1"
         type: string
+      mode:
+        description: "sources: run native-image on the native sources; full: build the project"
+        required: false
+        default: sources
+        type: string
+      command:
+        description: Build script of the full mode (writes the executable to output/)
+        required: false
+        default: ""
+        type: string
 
 permissions:
-  contents: write   # read the draft release holding the native sources
+  contents: write   # read the draft release holding the sources
   actions: read
 
 jobs:
@@ -62,7 +74,7 @@ jobs:
         with:
           arch: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
 
-      - name: Download native sources
+      - name: Download sources
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -70,26 +82,56 @@ jobs:
         run: |
           curl --fail --silent --show-error --location \
             -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" \
-            "$SOURCES_URL" -o native-sources.zip
-          mkdir native-sources
-          cd native-sources && jar xf ../native-sources.zip
+            "$SOURCES_URL" -o sources.zip
+          mkdir work
+          cd work && jar xf ../sources.zip
 
       - name: native-image (Linux, macOS)
-        if: runner.os != 'Windows'
+        if: inputs.mode != 'full' && runner.os != 'Windows'
         shell: bash
-        working-directory: native-sources
-        run: native-image @native-image.matrix.args
+        working-directory: work
+        run: |
+          mkdir -p output
+          native-image @native-image.matrix.args
 
       - name: native-image (Windows)
+        if: inputs.mode != 'full' && runner.os == 'Windows'
+        shell: cmd
+        working-directory: work
+        run: |
+          if not exist output mkdir output
+          native-image.cmd @native-image.matrix.args
+
+      - name: Build the project (Linux, macOS)
+        if: inputs.mode == 'full' && runner.os != 'Windows'
+        shell: bash
+        working-directory: work
+        env:
+          NM_COMMAND: ${{ inputs.command }}
+        run: sh -c "$NM_COMMAND"
+
+      - name: Build the project (Windows)
+        if: inputs.mode == 'full' && runner.os == 'Windows'
+        shell: cmd
+        working-directory: work
+        env:
+          NM_COMMAND: ${{ inputs.command }}
+        run: "%NM_COMMAND%"
+
+      - name: Record the GraalVM version (Linux, macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: native-image --version > work/output/native-image.version
+
+      - name: Record the GraalVM version (Windows)
         if: runner.os == 'Windows'
         shell: cmd
-        working-directory: native-sources
-        run: native-image.cmd @native-image.matrix.args
+        run: native-image.cmd --version > work\output\native-image.version
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
           name: native-${{ inputs.correlation_id }}
-          path: native-sources/output/
+          path: work/output/
           if-no-files-found: error
           retention-days: ${{ inputs.retention_days }}

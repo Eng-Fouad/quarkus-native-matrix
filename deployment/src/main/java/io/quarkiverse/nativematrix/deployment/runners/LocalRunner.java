@@ -60,6 +60,15 @@ public class LocalRunner implements NativeBuildRunner {
             command.add(findNativeImage(request.options())
                     .orElseThrow(() -> new NativeBuildException("Cannot find native-image")).toString());
         }
+        List<String> versionCommand = new ArrayList<>(command);
+        versionCommand.add("--version");
+        Processes.Result version = Processes.capture(versionCommand, context.workDirectory());
+        if (version.succeeded()) {
+            context.reportNativeImageVersion(version.outputAsString());
+        } else {
+            context.log().warn("native-image --version failed: " + version.outputAsString());
+        }
+
         // Run in the private work directory so that parallel targets never write into the shared native sources;
         // the jar is referenced by absolute path and the classpath is resolved from its manifest.
         Path sources = request.nativeSourcesDirectory();

@@ -1,33 +1,17 @@
 package io.quarkiverse.nativematrix.deployment.runners;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
-
-import org.apache.sshd.client.SshClient;
-import org.apache.sshd.client.channel.ChannelExec;
-import org.apache.sshd.client.channel.ClientChannelEvent;
-import org.apache.sshd.client.keyverifier.AcceptAllServerKeyVerifier;
-import org.apache.sshd.client.keyverifier.KnownHostsServerKeyVerifier;
-import org.apache.sshd.client.keyverifier.RejectAllServerKeyVerifier;
-import org.apache.sshd.client.session.ClientSession;
-import org.apache.sshd.common.config.keys.FilePasswordProvider;
-import org.apache.sshd.common.keyprovider.FileKeyPairProvider;
-import org.apache.sshd.sftp.client.SftpClient;
-import org.apache.sshd.sftp.client.SftpClientFactory;
-import org.apache.sshd.sftp.common.SftpConstants;
-import org.apache.sshd.sftp.common.SftpException;
 
 import io.quarkiverse.nativematrix.deployment.orchestrator.NativeMatrixOrchestrator;
 import io.quarkiverse.nativematrix.spi.BuildContext;
 import io.quarkiverse.nativematrix.spi.BuildLog;
+import io.quarkiverse.nativematrix.spi.BuildMode;
 import io.quarkiverse.nativematrix.spi.NativeBuildException;
 import io.quarkiverse.nativematrix.spi.NativeBuildRequest;
 import io.quarkiverse.nativematrix.spi.NativeBuildResult;
@@ -35,21 +19,27 @@ import io.quarkiverse.nativematrix.spi.NativeBuildRunner;
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.RunnerOptions;
 import io.quarkiverse.nativematrix.spi.support.ArgFile;
-import io.quarkiverse.nativematrix.spi.support.FileTrees;
-import io.quarkiverse.nativematrix.spi.support.LineOutputStream;
 
 /**
  * Runs {@code native-image} on any machine reachable over SSH: Linux, macOS, or Windows with OpenSSH. Nothing has to be
- * installed on the remote machine besides GraalVM/Mandrel (and, on Windows, the MSVC build tools): files are
- * transferred with SFTP and the build runs through an exec channel.
+ * installed on the remote machine besides GraalVM/Mandrel (and, on Windows, the MSVC build tools).
  * <p>
+ * Two SSH clients are available ({@code client} option):
+ * <ul>
+ * <li>{@code openssh}: the {@code ssh}/{@code scp} executables of the build machine. Everything configured for OpenSSH
+ * applies: SSH agent, {@code ~/.ssh/config} aliases, {@code ProxyJump}, certificates, hardware keys.</li>
+ * <li>{@code mina}: an embedded client (Apache MINA SSHD) that needs no executable but only reads key files.</li>
+ * <li>{@code auto} (default): {@code openssh} when {@code ssh} and {@code scp} are on the PATH and no
+ * {@code identity-passphrase} is configured, else {@code mina}.</li>
+ * </ul>
  * Options:
  * <ul>
- * <li>{@code host} (required), {@code port} (22), {@code user} (local user name)</li>
- * <li>{@code identity-file}: comma separated private keys; defaults to {@code ~/.ssh/id_ed25519},
+ * <li>{@code host} (required): host name, or a host alias of {@code ~/.ssh/config} with {@code openssh}</li>
+ * <li>{@code port} (22), {@code user} (the local user with {@code mina}, the OpenSSH configuration with
+ * {@code openssh})</li>
+ * <li>{@code identity-file}: comma separated private keys; {@code mina} defaults to {@code ~/.ssh/id_ed25519},
  * {@code ~/.ssh/id_ecdsa}, {@code ~/.ssh/id_rsa}</li>
- * <li>{@code identity-passphrase}: passphrase of encrypted keys (use an expression such as
- * {@code ${SSH_KEY_PASSPHRASE}})</li>
+ * <li>{@code identity-passphrase} ({@code mina} only): passphrase of encrypted keys, e.g. {@code ${SSH_KEY_PASSPHRASE}}</li>
  * <li>{@code known-hosts}: defaults to {@code ~/.ssh/known_hosts}; {@code strict-host-key-checking} (true) rejects
  * unknown hosts</li>
  * <li>{@code graalvm-home}: GraalVM/Mandrel installation on the remote machine; otherwise {@code native-image} must be
@@ -59,12 +49,17 @@ import io.quarkiverse.nativematrix.spi.support.LineOutputStream;
  * {@code call "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"}</li>
  * <li>{@code work-directory}: remote directory, relative to the home directory or absolute; defaults to
  * {@code .quarkus-native-matrix}</li>
- * <li>{@code keep-remote-files} (false), {@code connect-timeout} (30s)</li>
+ * <li>{@code keep-remote-files} (false), {@code connect-timeout} (30s), {@code check-version} (true)</li>
  * </ul>
+ * <p>
+ * In {@code mode=full}, the project is uploaded and built remotely with its build tool; {@code graalvm-home}, when set,
+ * becomes {@code JAVA_HOME} and is prepended to the {@code PATH}. The remote machine then also needs the build tool
+ * (or its wrapper) and access to the artifact repositories.
  */
 public class SshRunner implements NativeBuildRunner {
 
     public static final String ID = "ssh";
+    static final String WORK_SUBDIRECTORY = "w";
 
     @Override
     public String id() {
@@ -77,12 +72,28 @@ public class SshRunner implements NativeBuildRunner {
     }
 
     @Override
+    public boolean supports(BuildMode mode) {
+        return true;
+    }
+
+    @Override
     public void validate(NativeBuildRequest request) {
         RunnerOptions o = request.options();
         o.require("host");
         o.getInt("port", 22);
         o.getDuration("connect-timeout", Duration.ofSeconds(30));
         o.getBoolean("strict-host-key-checking", true);
+        String client = o.get("client", "auto");
+        if (!List.of("auto", "openssh", "mina").contains(client)) {
+            throw new IllegalArgumentException("Option 'client' must be auto, openssh or mina, got '" + client + "'");
+        }
+        if (client.equals("openssh") && !OpenSshTransport.available()) {
+            throw new IllegalArgumentException("client=openssh but ssh/scp are not on the PATH");
+        }
+        if (client.equals("openssh") && o.get("identity-passphrase").isPresent()) {
+            throw new IllegalArgumentException("identity-passphrase is not supported with client=openssh: load the key"
+                    + " in your SSH agent instead");
+        }
         for (Path key : identityFiles(o)) {
             if (!Files.isRegularFile(key) && o.get("identity-file").isPresent()) {
                 throw new IllegalArgumentException("Identity file not found: " + key);
@@ -90,65 +101,82 @@ public class SshRunner implements NativeBuildRunner {
         }
     }
 
+    static boolean useOpenSsh(RunnerOptions o) {
+        return switch (o.get("client", "auto")) {
+            case "openssh" -> true;
+            case "mina" -> false;
+            default -> o.get("identity-passphrase").isEmpty() && OpenSshTransport.available();
+        };
+    }
+
     @Override
     public NativeBuildResult build(NativeBuildRequest request, BuildContext context) throws Exception {
         RunnerOptions o = request.options();
         BuildLog log = context.log();
         String host = o.require("host");
-        int port = o.getInt("port", 22);
-        String user = o.get("user", System.getProperty("user.name"));
-        long connectTimeout = o.getDuration("connect-timeout", Duration.ofSeconds(30)).toMillis();
         boolean windows = request.platform().os() == Platform.Os.WINDOWS;
+        boolean openssh = useOpenSsh(o);
         String remoteDir = remoteDirectory(request);
+        // the OpenSSH client copies directories with scp -r, which needs a destination that does not exist yet
+        String workDir = openssh ? remoteDir + "/" + WORK_SUBDIRECTORY : remoteDir;
+        boolean full = request.mode() == BuildMode.FULL;
 
-        try (SshClient client = SshClient.setUpDefaultClient()) {
-            if (o.getBoolean("strict-host-key-checking", true)) {
-                Path knownHosts = o.get("known-hosts").map(Path::of)
-                        .orElse(Path.of(System.getProperty("user.home"), ".ssh", "known_hosts"));
-                client.setServerKeyVerifier(new KnownHostsServerKeyVerifier(RejectAllServerKeyVerifier.INSTANCE, knownHosts));
-            } else {
-                client.setServerKeyVerifier(AcceptAllServerKeyVerifier.INSTANCE);
+        try (SshTransport transport = openssh
+                ? new OpenSshTransport(o, windows, context.workDirectory().resolve("ssh"), log)
+                : MinaSshTransport.connect(o, log)) {
+            if (openssh) {
+                log.info("Connecting to " + host + " with OpenSSH");
             }
-            List<Path> keys = identityFiles(o).stream().filter(Files::isRegularFile).toList();
-            FileKeyPairProvider keyProvider = new FileKeyPairProvider(keys);
-            o.get("identity-passphrase").ifPresent(p -> keyProvider.setPasswordFinder(FilePasswordProvider.of(p)));
-            client.setKeyIdentityProvider(keyProvider);
-            client.start();
+            try {
+                transport.mkdirs(remoteDir);
+                if (o.getBoolean("check-version", true)) {
+                    StringBuilder version = new StringBuilder();
+                    int exit = transport.run(windows ? windowsVersionCommand(o) : posixVersionCommand(o), remoteDir,
+                            line -> version.append(line).append('\n'), context, Duration.ofMinutes(2));
+                    if (exit == 0) {
+                        context.reportNativeImageVersion(version.toString());
+                    } else {
+                        log.warn("native-image --version failed on " + host + " (exit code " + exit + "): " + version);
+                    }
+                }
 
-            log.infof("Connecting to %s@%s:%d", user, host, port);
-            try (ClientSession session = client.connect(user, host, port).verify(connectTimeout).getSession()) {
-                session.auth().verify(connectTimeout);
-                try (SftpClient sftp = SftpClientFactory.instance().createSftpClient(session)) {
+                String command;
+                if (full) {
+                    log.info("Uploading the project to " + workDir);
+                    Path project = request.requireFullBuild().stage(context.workDirectory().resolve("project"),
+                            request.platform());
+                    transport.upload(project, workDir, context);
+                    String script = request.requireFullBuild().script(request.platform(), request.outputName());
+                    command = windows ? windowsFullCommand(o, workDir, script) : posixFullCommand(o, workDir, script);
+                } else {
+                    log.info("Uploading the native sources to " + workDir);
+                    transport.upload(request.nativeSourcesDirectory(), workDir, context);
+                    transport.write(workDir + "/" + ArgFile.DEFAULT_NAME,
+                            ArgFile.render(request.nativeImageArgs()).getBytes(StandardCharsets.UTF_8));
+                    // native-image does not create the directory of its -o path
+                    transport.mkdirs(workDir + "/" + NativeBuildRequest.DEFAULT_OUTPUT_DIR);
+                    command = windows ? windowsCommand(o, workDir) : posixCommand(o, workDir);
+                }
+
+                log.debug("Remote command: " + command);
+                int exit = transport.run(command, remoteDir, log::output, context, request.timeout());
+                if (exit != 0) {
+                    throw new NativeBuildException((full ? "The project build" : "native-image") + " failed on "
+                            + host + " (exit code " + exit + ")");
+                }
+
+                log.info("Downloading the executable");
+                transport.download(workDir + "/" + NativeBuildRequest.DEFAULT_OUTPUT_DIR, request.outputDirectory());
+            } finally {
+                if (!o.getBoolean("keep-remote-files", false)) {
+                    boolean interrupted = Thread.interrupted();
                     try {
-                        log.info("Uploading the native sources to " + remoteDir);
-                        mkdirs(sftp, remoteDir);
-                        upload(sftp, request.nativeSourcesDirectory(), remoteDir, context);
-                        try (OutputStream os = sftp.write(remoteDir + "/" + ArgFile.DEFAULT_NAME)) {
-                            os.write(ArgFile.render(request.nativeImageArgs())
-                                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                        }
-
-                        String command = windows ? windowsCommand(o, remoteDir) : posixCommand(o, remoteDir);
-                        log.debug("Remote command: " + command);
-                        int exit = exec(session, command, log, context, request.timeout());
-                        if (exit != 0) {
-                            throw new NativeBuildException("native-image failed on " + host + " (exit code " + exit + ")");
-                        }
-
-                        log.info("Downloading the executable");
-                        download(sftp, remoteDir + "/" + NativeBuildRequest.DEFAULT_OUTPUT_DIR, request.outputDirectory());
+                        transport.delete(remoteDir);
+                    } catch (IOException | InterruptedException e) {
+                        log.warn("Could not delete " + remoteDir + " on " + host + ": " + e.getMessage());
                     } finally {
-                        if (!o.getBoolean("keep-remote-files", false)) {
-                            boolean interrupted = Thread.interrupted();
-                            try {
-                                deleteRecursively(sftp, remoteDir);
-                            } catch (IOException e) {
-                                log.warn("Could not delete " + remoteDir + " on " + host + ": " + e.getMessage());
-                            } finally {
-                                if (interrupted) {
-                                    Thread.currentThread().interrupt();
-                                }
-                            }
+                        if (interrupted) {
+                            Thread.currentThread().interrupt();
                         }
                     }
                 }
@@ -183,27 +211,35 @@ public class SshRunner implements NativeBuildRunner {
         return sb.append(nativeImage).append(" @").append(ArgFile.DEFAULT_NAME).toString();
     }
 
-    private static int exec(ClientSession session, String command, BuildLog log, BuildContext context, Duration timeout)
-            throws IOException, InterruptedException {
-        try (ChannelExec channel = session.createExecChannel(command);
-                LineOutputStream out = new LineOutputStream(log::output)) {
-            channel.setOut(out);
-            channel.setErr(out);
-            channel.open().verify(Duration.ofSeconds(30).toMillis());
-            long deadline = System.nanoTime() + timeout.toNanos();
-            while (true) {
-                Set<ClientChannelEvent> events = channel.waitFor(EnumSet.of(ClientChannelEvent.CLOSED), 1000);
-                if (events.contains(ClientChannelEvent.CLOSED)) {
-                    break;
-                }
-                if (context.isCancelled() || Thread.currentThread().isInterrupted() || System.nanoTime() > deadline) {
-                    channel.close(true);
-                    throw new InterruptedException("Remote build cancelled");
-                }
-            }
-            Integer exit = channel.getExitStatus();
-            return exit == null ? -1 : exit;
-        }
+    static String posixFullCommand(RunnerOptions o, String remoteDir, String script) {
+        StringBuilder sb = new StringBuilder("cd ").append(RunnerSupport.shellQuote(remoteDir)).append(" && ");
+        o.get("graalvm-home").ifPresent(h -> sb.append("export JAVA_HOME=").append(RunnerSupport.shellQuote(h))
+                .append(" PATH=").append(RunnerSupport.shellQuote(h + "/bin")).append(":\"$PATH\" && "));
+        o.get("pre-command").ifPresent(p -> sb.append(p).append(" && "));
+        return sb.append(script).toString();
+    }
+
+    static String windowsFullCommand(RunnerOptions o, String remoteDir, String script) {
+        StringBuilder sb = new StringBuilder("cd /d ").append(RunnerSupport.cmdQuote(remoteDir.replace('/', '\\')))
+                .append(" && ");
+        o.get("graalvm-home").ifPresent(h -> sb.append("set \"JAVA_HOME=").append(h).append("\" && set \"PATH=")
+                .append(h).append("\\bin;%PATH%\" && "));
+        o.get("pre-command").ifPresent(p -> sb.append(p).append(" && "));
+        return sb.append(script).toString();
+    }
+
+    static String posixVersionCommand(RunnerOptions o) {
+        StringBuilder sb = new StringBuilder();
+        o.get("pre-command").ifPresent(p -> sb.append(p).append(" && "));
+        return sb.append(o.get("graalvm-home").map(h -> RunnerSupport.shellQuote(h + "/bin/native-image"))
+                .orElse("native-image")).append(" --version").toString();
+    }
+
+    static String windowsVersionCommand(RunnerOptions o) {
+        StringBuilder sb = new StringBuilder();
+        o.get("pre-command").ifPresent(p -> sb.append(p).append(" && "));
+        return sb.append(o.get("graalvm-home").map(h -> RunnerSupport.cmdQuote(h + "\\bin\\native-image.cmd"))
+                .orElse("native-image")).append(" --version").toString();
     }
 
     static List<Path> identityFiles(RunnerOptions o) {
@@ -220,85 +256,5 @@ public class SshRunner implements NativeBuildRunner {
             }
         }
         return paths;
-    }
-
-    private static void mkdirs(SftpClient sftp, String dir) throws IOException {
-        String[] parts = dir.split("/");
-        StringBuilder current = new StringBuilder(dir.startsWith("/") ? "/" : "");
-        for (String part : parts) {
-            if (part.isEmpty()) {
-                continue;
-            }
-            if (current.length() > 0 && current.charAt(current.length() - 1) != '/') {
-                current.append('/');
-            }
-            current.append(part);
-            if (!exists(sftp, current.toString())) {
-                sftp.mkdir(current.toString());
-            }
-        }
-    }
-
-    private static boolean exists(SftpClient sftp, String path) throws IOException {
-        try {
-            sftp.stat(path);
-            return true;
-        } catch (SftpException e) {
-            if (e.getStatus() == SftpConstants.SSH_FX_NO_SUCH_FILE) {
-                return false;
-            }
-            throw e;
-        }
-    }
-
-    private static void upload(SftpClient sftp, Path localDir, String remoteDir, BuildContext context)
-            throws IOException, InterruptedException {
-        for (Path file : FileTrees.listFiles(localDir)) {
-            context.checkCancelled();
-            String relative = localDir.relativize(file).toString().replace('\\', '/');
-            String target = remoteDir + "/" + relative;
-            int slash = target.lastIndexOf('/');
-            mkdirs(sftp, target.substring(0, slash));
-            try (OutputStream os = sftp.write(target)) {
-                Files.copy(file, os);
-            }
-        }
-    }
-
-    private static void download(SftpClient sftp, String remoteDir, Path localDir) throws IOException {
-        Files.createDirectories(localDir);
-        for (SftpClient.DirEntry entry : sftp.readDir(remoteDir)) {
-            String name = entry.getFilename();
-            if (name.equals(".") || name.equals("..")) {
-                continue;
-            }
-            String remote = remoteDir + "/" + name;
-            if (entry.getAttributes().isDirectory()) {
-                download(sftp, remote, localDir.resolve(name));
-            } else {
-                try (InputStream in = sftp.read(remote)) {
-                    Files.copy(in, localDir.resolve(name), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                }
-            }
-        }
-    }
-
-    private static void deleteRecursively(SftpClient sftp, String path) throws IOException {
-        if (!exists(sftp, path)) {
-            return;
-        }
-        for (SftpClient.DirEntry entry : sftp.readDir(path)) {
-            String name = entry.getFilename();
-            if (name.equals(".") || name.equals("..")) {
-                continue;
-            }
-            String child = path + "/" + name;
-            if (entry.getAttributes().isDirectory()) {
-                deleteRecursively(sftp, child);
-            } else {
-                sftp.remove(child);
-            }
-        }
-        sftp.rmdir(path);
     }
 }

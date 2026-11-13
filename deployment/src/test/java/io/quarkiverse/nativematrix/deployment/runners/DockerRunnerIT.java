@@ -39,7 +39,8 @@ class DockerRunnerIT {
                 set -e
                 args="${1#@}"
                 out=$(awk 'p { print; exit } $0 == "-o" { p = 1 }' "$args")
-                mkdir -p "$(dirname "$out")"
+                # like GraalVM: the output directory must exist
+                [ -d "$(dirname "$out")" ] || { echo "Error: non-existent directory $(dirname "$out")"; exit 20; }
                 echo "linux executable built by $(id -un) on $(uname -m)" > "$out"
                 echo "fake native-image wrote $out"
                 """);

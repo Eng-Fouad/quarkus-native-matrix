@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkiverse.nativematrix.deployment.orchestrator.NativeMatrixOrchestrator;
 import io.quarkiverse.nativematrix.spi.BuildContext;
 import io.quarkiverse.nativematrix.spi.BuildLog;
+import io.quarkiverse.nativematrix.spi.BuildMode;
 import io.quarkiverse.nativematrix.spi.NativeBuildException;
 import io.quarkiverse.nativematrix.spi.NativeBuildRequest;
 import io.quarkiverse.nativematrix.spi.NativeBuildResult;
@@ -55,6 +56,12 @@ public class GitHubActionsRunner implements NativeBuildRunner {
     public static final String ID = "github-actions";
     public static final String DEFAULT_WORKFLOW = "native-matrix.yml";
     static final String WORKFLOW_RESOURCE = "/io/quarkiverse/nativematrix/github/native-matrix.yml";
+    static final String VERSION_FILE = "native-image.version";
+
+    @Override
+    public boolean supports(BuildMode mode) {
+        return true;
+    }
 
     private static final Map<Platform, String> DEFAULT_RUNS_ON = Map.of(
             Platform.parse("linux-amd64"), "ubuntu-24.04",
@@ -111,9 +118,14 @@ public class GitHubActionsRunner implements NativeBuildRunner {
             ref = gh.get("").path("default_branch").asText("main");
         }
 
-        // 2. ship the native sources through a draft release
-        Path zip = Archives.zip(request.nativeSourcesDirectory(), context.workDirectory().resolve("native-sources.zip"),
-                Map.of(ArgFile.DEFAULT_NAME, ArgFile.render(request.nativeImageArgs()).getBytes(StandardCharsets.UTF_8)));
+        // 2. ship the native sources (or the project, in full mode) through a draft release
+        boolean full = request.mode() == BuildMode.FULL;
+        Path zip = full
+                ? request.requireFullBuild().zip(context.workDirectory().resolve("project.zip"), Map.of(),
+                        request.platform())
+                : Archives.zip(request.nativeSourcesDirectory(), context.workDirectory().resolve("native-sources.zip"),
+                        Map.of(ArgFile.DEFAULT_NAME,
+                                ArgFile.render(request.nativeImageArgs()).getBytes(StandardCharsets.UTF_8)));
         Map<String, Object> release = new LinkedHashMap<>();
         release.put("tag_name", "native-matrix-" + correlationId);
         release.put("name", "native-matrix " + correlationId + " (temporary)");
@@ -124,8 +136,8 @@ public class GitHubActionsRunner implements NativeBuildRunner {
         long releaseId = gh.post("releases", release).path("id").asLong();
         Long runId = null;
         try {
-            log.infof("Uploading the native sources (%d MB)", Files.size(zip) / (1024 * 1024));
-            String assetUrl = gh.uploadReleaseAsset(releaseId, "native-sources.zip", zip).path("url").asText();
+            log.infof("Uploading the %s (%d MB)", full ? "project" : "native sources", Files.size(zip) / (1024 * 1024));
+            String assetUrl = gh.uploadReleaseAsset(releaseId, zip.getFileName().toString(), zip).path("url").asText();
 
             // 3. dispatch the workflow
             String runsOn = o.get("runs-on").orElseGet(() -> DEFAULT_RUNS_ON.get(request.platform()));
@@ -141,7 +153,19 @@ public class GitHubActionsRunner implements NativeBuildRunner {
             inputs.put("java_version", o.get("java-version").orElseGet(() -> javaVersion(request.graalVmVersion())));
             inputs.put("distribution", o.get("distribution", "graalvm-community"));
             inputs.put("retention_days", o.get("artifact-retention-days", "1"));
-            gh.post("actions/workflows/" + workflow + "/dispatches", Map.of("ref", ref, "inputs", inputs));
+            inputs.put("mode", full ? "full" : "sources");
+            inputs.put("command", full ? request.requireFullBuild().script(request.platform(), request.outputName()) : "");
+            try {
+                gh.post("actions/workflows/" + workflow + "/dispatches", Map.of("ref", ref, "inputs", inputs));
+            } catch (GitHubClient.GitHubException e) {
+                if (e.status == 422 && e.getMessage().contains("nexpected input")) {
+                    Path copy = writeWorkflow(request.outputDirectory().getParent().resolve("github"));
+                    throw new NativeBuildException("The '" + workflow + "' workflow of " + gh.repository()
+                            + " is outdated. Replace .github/workflows/" + workflow + " with " + copy
+                            + " and run the build again.", e);
+                }
+                throw e;
+            }
             log.infof("Dispatched %s on %s (runs-on: %s)", workflow, ref, runsOn);
 
             // 4. find the run and wait for it
@@ -185,6 +209,13 @@ public class GitHubActionsRunner implements NativeBuildRunner {
             log.info("Downloading the executable");
             try (InputStream in = gh.download(artifact.path("archive_download_url").asText())) {
                 Archives.unzip(in, request.outputDirectory());
+            }
+            // the workflow records the output of native-image --version next to the executable
+            Path versionFile = request.outputDirectory().resolve(VERSION_FILE);
+            if (Files.isRegularFile(versionFile)) {
+                String version = Files.readString(versionFile);
+                Files.delete(versionFile);
+                context.reportNativeImageVersion(version);
             }
             return RunnerSupport.collectResult(request).withMetadata("run", url);
         } finally {
