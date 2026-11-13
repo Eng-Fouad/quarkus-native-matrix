@@ -1,0 +1,14 @@
+name: Native Matrix
+description: Build native executables for several OS/architecture combinations (Linux, macOS, Windows on amd64 and arm64) from a single Quarkus build, using local, Docker, SSH, GitHub Actions or custom runners.
+metadata:
+  keywords:
+    - native
+    - native-image
+    - graalvm
+    - mandrel
+    - cross-platform
+    - multi-arch
+  guide: https://docs.quarkiverse.io/quarkus-native-matrix/dev/
+  categories:
+    - "tooling"
+  status: "experimental"
