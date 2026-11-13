@@ -73,6 +73,10 @@ class SshRunnerTest {
         try (OutputStream os = Files.newOutputStream(clientKey)) {
             OpenSSHKeyPairResourceWriter.INSTANCE.writePrivateKey(keyPair, "test", null, os);
         }
+        // OpenSSH ignores private keys other users can read
+        if (clientKey.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            Files.setPosixFilePermissions(clientKey, java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+        }
 
         server = SshServer.setUpDefaultServer();
         server.setHost("127.0.0.1");

@@ -38,6 +38,12 @@ final class OpenSshTransport implements SshTransport {
         this.remoteWindows = remoteWindows;
         this.localScratch = localScratch;
         this.log = log;
+        try {
+            // holds the throwaway known_hosts file and the uploaded scripts
+            Files.createDirectories(localScratch);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     static boolean available() {
