@@ -90,6 +90,27 @@ Set `quarkus.native-matrix.reuse-unchanged=false` to always rebuild.
 - a `target/native-matrix/jreleaser.yml` declaring them as a `BINARY` distribution, to merge into your JReleaser
   configuration.
 
+**Signing.** Executables are signed on the build machine once they are built, whatever the runner, so signing keys
+never leave it:
+- **Windows (Authenticode)** with [Jsign](https://ebourg.github.io/jsign/), in-process, on any OS. It supports
+  PKCS#12/JKS files, PKCS#11 tokens, and cloud key services (Azure Trusted Signing, Azure Key Vault, AWS KMS,
+  Google Cloud KMS, HashiCorp Vault, DigiCert ONE, SSL.com eSigner...). Signatures are timestamped by default.
+- **macOS** with [rcodesign](https://gregoryszorc.com/docs/apple-codesign/stable/), which runs on Linux and Windows
+  too. Executables get the hardened runtime and can be notarized. Apple cannot staple a ticket to a bare executable,
+  so Gatekeeper checks the notarization online.
+
+```properties
+quarkus.native-matrix.signing.windows.keystore=signing.p12
+quarkus.native-matrix.signing.windows.storepass=${SIGNING_STOREPASS}
+quarkus.native-matrix.signing.macos.p12-file=developer-id.p12
+quarkus.native-matrix.signing.macos.p12-password=${APPLE_P12_PASSWORD}
+quarkus.native-matrix.signing.macos.notarize=true
+quarkus.native-matrix.signing.macos.api-key-file=app-store-connect-key.json
+```
+
+The key stores are opened before any target is built, so a wrong password fails fast. Linux executables are best
+signed when publishing, e.g. with JReleaser's GPG or cosign signing.
+
 ## Configuration
 
 | Property | Default | Description |
@@ -122,17 +143,37 @@ Set `quarkus.native-matrix.reuse-unchanged=false` to always rebuild.
 | `quarkus.native-matrix.full-build.skip-tests` | `true` | |
 | `quarkus.native-matrix.full-build.posix-command` / `windows-command` | generated | Replace the whole build command |
 | `quarkus.native-matrix.full-build.excluded-directories` | `target,build,.git,.idea,.vscode,.gradle,node_modules,.quarkus` | Never shipped |
+| `quarkus.native-matrix.full-build.ship-snapshots` | `true` | Ship SNAPSHOT dependencies only installed on this machine |
+| `quarkus.native-matrix.signing.windows.keystore` | | Enables Authenticode signing: key store file, or cloud store name |
+| `quarkus.native-matrix.signing.windows.storetype` | `PKCS12` | Any Jsign store type: `JKS`, `PKCS11`, `AZURETRUSTEDSIGNING`, `AWS`, `GOOGLECLOUD`... |
+| `quarkus.native-matrix.signing.windows.storepass` / `keypass` / `alias` / `certfile` | | Key store access |
+| `quarkus.native-matrix.signing.windows.timestamp` / `tsaurl` | `true` / `http://timestamp.digicert.com` | |
+| `quarkus.native-matrix.signing.windows.program-name` / `program-url` | | Shown by Windows |
+| `quarkus.native-matrix.signing.macos.p12-file` | | Enables macOS signing: Developer ID Application certificate |
+| `quarkus.native-matrix.signing.macos.p12-password` | | |
+| `quarkus.native-matrix.signing.macos.command` | `rcodesign` | Comma separated |
+| `quarkus.native-matrix.signing.macos.entitlements` | | Entitlements plist |
+| `quarkus.native-matrix.signing.macos.notarize` / `api-key-file` | `false` | App Store Connect API key from `rcodesign encode-app-store-connect-api-key` |
 | `quarkus.native-matrix.packaging.archives` | `false` | Per-target archives in `native-matrix/dist` |
 | `quarkus.native-matrix.packaging.jreleaser` | `false` | Archives plus `native-matrix/jreleaser.yml` |
 | `quarkus.native-matrix.packaging.name` | executable name without `-runner` | Distribution name |
 
-In `full` mode the project root is the directory holding `settings.gradle(.kts)`, or else the top of the chain of
-`pom.xml` files above the module. The generated command uses the wrapper when there is one, builds only the
-module and what it needs (`-pl <module> -am`, or `:<module>:build`), and disables the matrix on the builder.
+In `full` mode the project root is the directory holding `settings.gradle(.kts)`, or the Maven root (`.mvn` or
+`mvnw`, up to the repository root), or else the top of the chain of `pom.xml` files above the module. The generated
+command uses the wrapper when there is one, builds only the module and what it needs (`-pl <module> -am`, or
+`:<module>:build`), and disables the matrix on the builder.
+- SNAPSHOT dependencies (and SNAPSHOT parent POMs) that only exist in your local Maven repository are shipped with
+  the project, in `.native-matrix/repository`. Maven reads them through `-Dmaven.repo.local.tail` (Maven 3.9+),
+  and Gradle through a generated init script.
+- A parent POM that exists on disk outside the project directory fails the build before anything is shipped. The
+  message names the `project-directory` to set.
 
-The extension adapts the generated arguments per target. For example, it drops the `heapdump` monitoring option
-for Windows and ignores Linux-only static linking flags elsewhere. It warns about arguments that reference paths
-of the build machine.
+The extension adapts the generated arguments to each target:
+- **Paths:** files and folders of the build machine referenced with absolute paths (agent configuration
+  directories, trust stores, configuration files...) are copied into the native sources, under
+  `native-matrix-extra/`, and the arguments are rewritten to relative paths. Every builder gets them.
+- **Platform-specific options:** it drops the `heapdump` monitoring option for Windows and ignores Linux-only
+  static linking flags elsewhere.
 
 ## Runners
 
@@ -301,12 +342,14 @@ mvn -Pit -pl integration-tests/sample-app package -Dnative-matrix
 #   + full mode in Docker:          -De2e.full=true
 ```
 
-## Limitations
+## Notes
 
-- macOS code signing/notarization and Windows Authenticode signing are not handled; sign the manifest's outputs afterwards.
-- Executables built remotely only see build-time configuration; anything referencing absolute paths of the build
-  machine (e.g. `-H:ConfigurationFileDirectories`) must exist on the builders too (a warning is logged).
-- `full` mode only ships what the build needs from the project directory; parent POMs or included builds outside it,
-  and dependencies only available on the build machine (local snapshots), must be reachable from the builder.
-- The matrix runs during the Quarkus build after the native sources are produced, so it needs a native sources build
-  even when every target uses `full` mode.
+- The matrix runs inside the Quarkus build, after the native sources are produced, so a matrix build is a native
+  sources build. That's what `-Dnative-matrix` does, and when every target uses `full` mode it only adds a few
+  seconds of jar packaging.
+- An absolute path in an argument that doesn't exist on the build machine can't be shipped. It's kept as is, with a
+  warning, and must exist on the builders.
+- `full` mode ships the project directory and the local SNAPSHOTs it can identify. Gradle included builds outside the
+  project, and repositories that need credentials, must be reachable from the builders.
+- If you replace the full-build commands, add `-Dmaven.repo.local.tail=.native-matrix/repository` (or the init
+  script for Gradle) yourself when SNAPSHOTs are shipped.

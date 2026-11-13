@@ -29,9 +29,11 @@ import io.quarkiverse.nativematrix.spi.support.FileTrees;
  * @param executableDirectory where the build writes the executable, relative to the project root, with forward slashes
  *        (e.g. {@code app/target})
  * @param excludedDirectories names of directories never shipped ({@code target}, {@code .git}...)
+ * @param additionalFiles files shipped with the project although they are not part of it, by path relative to the
+ *        project root: e.g. SNAPSHOT dependencies only installed on the build machine
  */
 public record FullBuild(Path projectDirectory, String posixCommand, String windowsCommand, String executableDirectory,
-        Set<String> excludedDirectories) {
+        Set<String> excludedDirectories, Map<String, Path> additionalFiles) {
 
     public FullBuild {
         Objects.requireNonNull(projectDirectory, "projectDirectory");
@@ -40,6 +42,12 @@ public record FullBuild(Path projectDirectory, String posixCommand, String windo
         executableDirectory = executableDirectory == null || executableDirectory.isBlank() ? "."
                 : executableDirectory.replace('\\', '/');
         excludedDirectories = excludedDirectories == null ? Set.of() : Set.copyOf(excludedDirectories);
+        additionalFiles = additionalFiles == null ? Map.of() : Map.copyOf(additionalFiles);
+    }
+
+    public FullBuild(Path projectDirectory, String posixCommand, String windowsCommand, String executableDirectory,
+            Set<String> excludedDirectories) {
+        this(projectDirectory, posixCommand, windowsCommand, executableDirectory, excludedDirectories, Map.of());
     }
 
     /**
@@ -103,6 +111,11 @@ public record FullBuild(Path projectDirectory, String posixCommand, String windo
      */
     public Path stage(Path destination, Platform platform) throws IOException {
         FileTrees.copy(projectDirectory, destination, this::includes);
+        for (Map.Entry<String, Path> extra : additionalFiles.entrySet()) {
+            Path target = destination.resolve(extra.getKey());
+            Files.createDirectories(target.getParent());
+            Files.copy(extra.getValue(), target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
         if (platform.os().isPosix()) {
             for (Map.Entry<String, byte[]> script : normalizedScripts().entrySet()) {
                 Files.write(destination.resolve(script.getKey()), script.getValue());
@@ -117,6 +130,9 @@ public record FullBuild(Path projectDirectory, String posixCommand, String windo
      */
     public Path zip(Path zipFile, Map<String, byte[]> extraEntries, Platform platform) throws IOException {
         Map<String, byte[]> entries = new HashMap<>();
+        for (Map.Entry<String, Path> extra : additionalFiles.entrySet()) {
+            entries.put(extra.getKey(), Files.readAllBytes(extra.getValue()));
+        }
         if (platform.os().isPosix()) {
             entries.putAll(normalizedScripts());
         }

@@ -33,6 +33,7 @@
         <quarkus.version>3.40.1</quarkus.version>
         <sshd.version>2.20.0</sshd.version>
         <assertj.version>3.27.7</assertj.version>
+        <bouncycastle-lts.version>2.73.13</bouncycastle-lts.version>
     </properties>
 
     <dependencyManagement>
@@ -68,6 +69,32 @@
                 <groupId>org.apache.sshd</groupId>
                 <artifactId>sshd-sftp</artifactId>
                 <version>${sshd.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.jsign</groupId>
+                <artifactId>jsign-core</artifactId>
+                <version>7.6</version>
+            </dependency>
+            <!-- the Quarkus BOM manages bcutil-lts8on only: align the BouncyCastle LTS jars with the version Jsign uses -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-lts8on</artifactId>
+                <version>${bouncycastle-lts.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-lts8on</artifactId>
+                <version>${bouncycastle-lts.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcutil-lts8on</artifactId>
+                <version>${bouncycastle-lts.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpg-lts8on</artifactId>
+                <version>${bouncycastle-lts.version}</version>
             </dependency>
             <dependency>
                 <groupId>net.i2p.crypto</groupId>

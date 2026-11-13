@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import io.quarkiverse.nativematrix.deployment.orchestrator.PathRelocator;
 import io.quarkiverse.nativematrix.spi.BuildContext;
 import io.quarkiverse.nativematrix.spi.NativeBuildException;
 import io.quarkiverse.nativematrix.spi.NativeBuildRequest;
@@ -85,13 +86,37 @@ public class LocalRunner implements NativeBuildRunner {
         return RunnerSupport.collectResult(request);
     }
 
+    /**
+     * The build runs in the work directory: paths relative to the native sources (the runner jar, the files shipped by
+     * {@link PathRelocator}) are made absolute.
+     */
     static List<String> withAbsoluteJar(List<String> args, Path sources) {
         List<String> copy = new ArrayList<>(args);
         int jar = copy.lastIndexOf("-jar");
         if (jar >= 0 && jar + 1 < copy.size()) {
-            copy.set(jar + 1, sources.resolve(copy.get(jar + 1)).toAbsolutePath().toString().replace('\\', '/'));
+            copy.set(jar + 1, absolute(sources, copy.get(jar + 1)));
+        }
+        String extra = PathRelocator.EXTRA_DIRECTORY + "/";
+        for (int i = 0; i < copy.size(); i++) {
+            String arg = copy.get(i);
+            if (!arg.contains(extra)) {
+                continue;
+            }
+            int eq = arg.indexOf('=');
+            String prefix = eq >= 0 ? arg.substring(0, eq + 1) : "";
+            String[] parts = (eq >= 0 ? arg.substring(eq + 1) : arg).split(",", -1);
+            for (int p = 0; p < parts.length; p++) {
+                if (parts[p].startsWith(extra)) {
+                    parts[p] = absolute(sources, parts[p]);
+                }
+            }
+            copy.set(i, prefix + String.join(",", parts));
         }
         return copy;
+    }
+
+    private static String absolute(Path sources, String relative) {
+        return sources.resolve(relative).toAbsolutePath().toString().replace('\\', '/');
     }
 
     static Optional<Path> findNativeImage(RunnerOptions options) {

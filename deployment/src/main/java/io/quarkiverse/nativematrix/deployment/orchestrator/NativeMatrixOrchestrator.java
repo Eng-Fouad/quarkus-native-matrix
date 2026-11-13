@@ -34,6 +34,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import io.quarkiverse.nativematrix.deployment.signing.ExecutableSigner;
 import io.quarkiverse.nativematrix.spi.BuildContext;
 import io.quarkiverse.nativematrix.spi.BuildLog;
 import io.quarkiverse.nativematrix.spi.BuildMode;
@@ -69,10 +70,11 @@ public final class NativeMatrixOrchestrator {
      * @param ignoredPlatformDependencies jar file name globs excluded from the platform dependency check
      * @param graalVmVersionCheck what to do when a builder runs another GraalVM version than the native sources expect
      * @param reuseUnchanged reuse the executables of the previous run whose inputs did not change
+     * @param signers sign the executables of the platforms they apply to, after a successful build
      */
     public record Settings(Path outputDirectory, int parallelism, boolean failFast, boolean keepWorkDirectories,
             boolean quiet, Platform host, CheckPolicy platformDependencyCheck, List<String> ignoredPlatformDependencies,
-            CheckPolicy graalVmVersionCheck, boolean reuseUnchanged) {
+            CheckPolicy graalVmVersionCheck, boolean reuseUnchanged, List<ExecutableSigner> signers) {
 
         public Settings {
             host = host == null ? Platform.host() : host;
@@ -80,6 +82,17 @@ public final class NativeMatrixOrchestrator {
             ignoredPlatformDependencies = ignoredPlatformDependencies == null ? List.of()
                     : List.copyOf(ignoredPlatformDependencies);
             graalVmVersionCheck = graalVmVersionCheck == null ? CheckPolicy.WARN : graalVmVersionCheck;
+            signers = signers == null ? List.of() : List.copyOf(signers);
+        }
+
+        /**
+         * Settings without signing.
+         */
+        public Settings(Path outputDirectory, int parallelism, boolean failFast, boolean keepWorkDirectories,
+                boolean quiet, Platform host, CheckPolicy platformDependencyCheck, List<String> ignoredPlatformDependencies,
+                CheckPolicy graalVmVersionCheck, boolean reuseUnchanged) {
+            this(outputDirectory, parallelism, failFast, keepWorkDirectories, quiet, host, platformDependencyCheck,
+                    ignoredPlatformDependencies, graalVmVersionCheck, reuseUnchanged, List.of());
         }
 
         /**
@@ -88,6 +101,10 @@ public final class NativeMatrixOrchestrator {
         public Settings(Path outputDirectory, int parallelism, boolean failFast, boolean keepWorkDirectories,
                 boolean quiet) {
             this(outputDirectory, parallelism, failFast, keepWorkDirectories, quiet, null, null, null, null, false);
+        }
+
+        List<ExecutableSigner> signersFor(Platform platform) {
+            return signers.stream().filter(s -> s.appliesTo(platform)).toList();
         }
     }
 
@@ -122,6 +139,15 @@ public final class NativeMatrixOrchestrator {
         String buildId = newBuildId();
         Path outputRoot = settings.outputDirectory().toAbsolutePath();
         Files.createDirectories(outputRoot);
+
+        // ship the local files referenced by the native-image arguments with the native sources
+        if (targets.stream().anyMatch(t -> t.mode() == BuildMode.SOURCES)) {
+            PathRelocator.Result relocation = PathRelocator.relocate(sources.args(), sources.directory());
+            relocation.relocated().forEach(p -> LOG.infof("Shipping %s with the native sources", p));
+            relocation.unresolved().forEach(a -> LOG.warnf("Argument '%s' references a path that does not exist on"
+                    + " this machine; it will only work if it exists where the executable is built", a));
+            sources = sources.withArgs(relocation.args());
+        }
 
         // 1. resolve and validate everything before starting any (possibly long and costly) build
         Map<MatrixTarget, NativeBuildRunner> runners = new LinkedHashMap<>();
@@ -204,7 +230,12 @@ public final class NativeMatrixOrchestrator {
                     : null;
             for (MatrixTarget t : targets) {
                 boolean full = t.mode() == BuildMode.FULL;
-                fingerprints.put(t, Fingerprints.target(full ? projectHash : sourcesHash, t, full ? fullBuild : null));
+                String signing = String.join("|",
+                        settings.signersFor(t.platform()).stream().map(ExecutableSigner::fingerprint).toList());
+                fingerprints.put(t, Fingerprints.target(full ? projectHash : sourcesHash + signing, t,
+                        full ? fullBuild : null)
+                        + (full && !signing.isEmpty() ? "-" + Integer.toHexString(signing.hashCode())
+                                : ""));
             }
             Path previousManifest = outputRoot.resolve(MANIFEST_FILE);
             if (Files.isRegularFile(previousManifest)) {
@@ -360,7 +391,8 @@ public final class NativeMatrixOrchestrator {
                 FileTrees.delete(workDir);
                 Files.createDirectories(workDir);
                 log.infof("Building %s with the %s runner", target.platform(), runner.description());
-                NativeBuildResult result = runner.build(request, new Context(log, workDir));
+                Context context = new Context(log, workDir);
+                NativeBuildResult result = runner.build(request, context);
                 Path executable = result.executable().toAbsolutePath().normalize();
                 if (!Files.isRegularFile(executable)) {
                     throw new NativeBuildException("The runner reported " + executable + " but the file does not exist");
@@ -371,6 +403,17 @@ public final class NativeMatrixOrchestrator {
                 }
                 if (nativeImageVersion != null) {
                     result = result.withMetadata("graalvm", nativeImageVersion);
+                }
+                for (ExecutableSigner signer : settings.signersFor(target.platform())) {
+                    context.checkCancelled();
+                    try {
+                        signer.sign(executable, target.platform(), log, workDir.resolve("signing"));
+                    } catch (InterruptedException | NativeBuildException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new NativeBuildException("Signing (" + signer.name() + ") failed: " + e.getMessage(), e);
+                    }
+                    result = result.withMetadata("signed", signer.name());
                 }
                 Duration duration = Duration.between(start, Instant.now());
                 log.infof("Built %s in %s", outputRoot.relativize(executable), format(duration));
