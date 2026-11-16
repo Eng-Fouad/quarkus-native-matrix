@@ -3,6 +3,7 @@ package io.quarkiverse.nativematrix.deployment.signing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -11,9 +12,10 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.bouncycastle.cms.CMSSignedData;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import io.quarkiverse.nativematrix.deployment.TestSupport;
 import io.quarkiverse.nativematrix.deployment.orchestrator.MatrixTarget;
@@ -28,13 +30,33 @@ import io.quarkiverse.nativematrix.spi.NativeBuildResult;
 import io.quarkiverse.nativematrix.spi.NativeBuildRunner;
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.RunnerOptions;
+import io.quarkiverse.nativematrix.spi.support.FileTrees;
 import io.quarkiverse.nativematrix.spi.support.Processes;
+import io.smallrye.common.os.OS;
 import net.jsign.Signable;
 
 class SigningTest {
 
-    @TempDir
+    /**
+     * Not a {@code @TempDir}: on Windows, the anti-virus may still hold a freshly signed executable when JUnit deletes
+     * the directory, which would fail the test for a reason unrelated to signing.
+     */
     Path tmp;
+
+    @BeforeEach
+    void createTemporaryDirectory() throws IOException {
+        tmp = Files.createTempDirectory("native-matrix-signing");
+    }
+
+    @AfterEach
+    void deleteTemporaryDirectory() throws InterruptedException {
+        for (int attempt = 0; attempt < 10 && Files.exists(tmp); attempt++) {
+            FileTrees.deleteQuietly(tmp);
+            if (Files.exists(tmp)) {
+                Thread.sleep(500);
+            }
+        }
+    }
 
     private Path keystore() throws Exception {
         Path ks = tmp.resolve("signing.p12");
@@ -132,7 +154,7 @@ class SigningTest {
 
             @Override
             public boolean appliesTo(Platform platform) {
-                return platform.os() == Platform.Os.WINDOWS;
+                return platform.os() == OS.WINDOWS;
             }
 
             @Override

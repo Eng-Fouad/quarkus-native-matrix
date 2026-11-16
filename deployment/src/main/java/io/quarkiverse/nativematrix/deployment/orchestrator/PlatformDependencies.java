@@ -13,6 +13,8 @@ import java.util.regex.Pattern;
 
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.support.FileTrees;
+import io.smallrye.common.cpu.CPU;
+import io.smallrye.common.os.OS;
 
 /**
  * Detects platform specific jars in the native sources that would make an executable built for another platform
@@ -37,10 +39,10 @@ public final class PlatformDependencies {
     /**
      * A jar built for a given OS, and possibly a given architecture.
      */
-    record PlatformJar(String fileName, String group, Platform.Os os, Optional<Platform.Arch> arch) {
+    record PlatformJar(String fileName, String group, OS os, Optional<CPU> cpu) {
 
         boolean matches(Platform platform) {
-            return os == platform.os() && arch.map(a -> a == platform.arch()).orElse(true);
+            return os == platform.os() && cpu.map(c -> c == platform.cpu()).orElse(true);
         }
     }
 
@@ -55,10 +57,12 @@ public final class PlatformDependencies {
         if (!m.matches()) {
             return Optional.empty();
         }
-        Platform.Os os = Platform.Os.parse(m.group("os"));
-        Optional<Platform.Arch> arch = Optional.ofNullable(m.group("arch"))
-                .map(a -> Platform.Arch.parse(a.replace("aarch_64", "aarch64").replace("x86-64", "x86_64")));
-        return Optional.of(new PlatformJar(fileName, m.group("base"), os, arch));
+        Optional<OS> os = Platform.parseOs(m.group("os"));
+        if (os.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<CPU> cpu = Optional.ofNullable(m.group("arch")).flatMap(Platform::parseCpu);
+        return Optional.of(new PlatformJar(fileName, m.group("base"), os.get(), cpu));
     }
 
     /**

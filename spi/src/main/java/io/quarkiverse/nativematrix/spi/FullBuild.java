@@ -12,6 +12,7 @@ import java.util.function.Predicate;
 
 import io.quarkiverse.nativematrix.spi.support.Archives;
 import io.quarkiverse.nativematrix.spi.support.FileTrees;
+import io.smallrye.common.os.OS;
 
 /**
  * What a runner needs to build a target in {@link BuildMode#FULL} mode: the project to ship and the commands that build
@@ -54,7 +55,7 @@ public record FullBuild(Path projectDirectory, String posixCommand, String windo
      * @return the build command for the platform of the builder
      */
     public String command(Platform platform) {
-        return platform.os() == Platform.Os.WINDOWS ? windowsCommand : posixCommand;
+        return platform.os() == OS.WINDOWS ? windowsCommand : posixCommand;
     }
 
     /**
@@ -70,7 +71,7 @@ public record FullBuild(Path projectDirectory, String posixCommand, String windo
      */
     public String script(Platform platform, String outputName) {
         String out = NativeBuildRequest.DEFAULT_OUTPUT_DIR;
-        if (platform.os() == Platform.Os.WINDOWS) {
+        if (platform.os() == OS.WINDOWS) {
             String dir = executableDirectory.replace('/', '\\');
             String exe = executablePath(platform, outputName).replace('/', '\\');
             return command(platform)
@@ -116,7 +117,7 @@ public record FullBuild(Path projectDirectory, String posixCommand, String windo
             Files.createDirectories(target.getParent());
             Files.copy(extra.getValue(), target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
-        if (platform.os().isPosix()) {
+        if (platform.isPosix()) {
             for (Map.Entry<String, byte[]> script : normalizedScripts().entrySet()) {
                 Files.write(destination.resolve(script.getKey()), script.getValue());
             }
@@ -133,7 +134,7 @@ public record FullBuild(Path projectDirectory, String posixCommand, String windo
         for (Map.Entry<String, Path> extra : additionalFiles.entrySet()) {
             entries.put(extra.getKey(), Files.readAllBytes(extra.getValue()));
         }
-        if (platform.os().isPosix()) {
+        if (platform.isPosix()) {
             entries.putAll(normalizedScripts());
         }
         entries.putAll(extraEntries);

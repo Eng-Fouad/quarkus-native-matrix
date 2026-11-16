@@ -17,6 +17,8 @@ import org.jboss.logging.Logger;
 import io.quarkiverse.nativematrix.spi.NativeBuildResult;
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.support.FileTrees;
+import io.smallrye.common.cpu.CPU;
+import io.smallrye.common.os.OS;
 
 /**
  * Packages the executables of a matrix build for distribution: one archive per target, and optionally a JReleaser
@@ -51,11 +53,10 @@ public final class Packager {
      */
     public static String jreleaserPlatform(Platform platform) {
         String os = switch (platform.os()) {
-            case LINUX -> "linux";
-            case MACOS -> "osx";
-            case WINDOWS -> "windows";
+            case MAC -> "osx";
+            default -> platform.osId(); // linux, windows
         };
-        String arch = platform.arch() == Platform.Arch.AMD64 ? "x86_64" : "aarch_64";
+        String arch = platform.cpu() == CPU.x64 ? "x86_64" : "aarch_64";
         return os + "-" + arch;
     }
 
@@ -95,7 +96,7 @@ public final class Packager {
                 }
             }
             Path archive;
-            if (platform.os() == Platform.Os.WINDOWS) {
+            if (platform.os() == OS.WINDOWS) {
                 archive = dist.resolve(root + ".zip");
                 writeZip(archive, root, entries);
             } else {

@@ -18,6 +18,7 @@ import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.RunnerOptions;
 import io.quarkiverse.nativematrix.spi.support.ArgFile;
 import io.quarkiverse.nativematrix.spi.support.Processes;
+import io.smallrye.common.os.OS;
 
 /**
  * Runs {@code native-image} in a builder container, on a local or remote Docker/Podman engine. Linux targets only.
@@ -67,7 +68,7 @@ public class DockerRunner implements NativeBuildRunner {
 
     @Override
     public boolean supports(Platform platform) {
-        return platform.os() == Platform.Os.LINUX;
+        return platform.os() == OS.LINUX;
     }
 
     @Override

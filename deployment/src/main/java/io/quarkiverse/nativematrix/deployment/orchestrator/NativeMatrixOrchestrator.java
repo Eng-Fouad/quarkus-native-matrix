@@ -65,7 +65,7 @@ public final class NativeMatrixOrchestrator {
      * @param failFast cancel the other targets when one fails
      * @param keepWorkDirectories do not delete the per-target work directories
      * @param quiet log tool output at DEBUG level
-     * @param host the platform of the machine that produced the native sources
+     * @param host the platform of the machine that produced the native sources (null if it is not a supported platform)
      * @param platformDependencyCheck what to do when the native sources contain jars selected for another platform
      * @param ignoredPlatformDependencies jar file name globs excluded from the platform dependency check
      * @param graalVmVersionCheck what to do when a builder runs another GraalVM version than the native sources expect
@@ -77,7 +77,7 @@ public final class NativeMatrixOrchestrator {
             CheckPolicy graalVmVersionCheck, boolean reuseUnchanged, List<ExecutableSigner> signers) {
 
         public Settings {
-            host = host == null ? Platform.host() : host;
+            host = host == null ? Platform.tryHost().orElse(null) : host;
             platformDependencyCheck = platformDependencyCheck == null ? CheckPolicy.FAIL : platformDependencyCheck;
             ignoredPlatformDependencies = ignoredPlatformDependencies == null ? List.of()
                     : List.copyOf(ignoredPlatformDependencies);
@@ -176,7 +176,8 @@ public final class NativeMatrixOrchestrator {
                 continue;
             }
             BuildLog log = new PrefixedBuildLog(LOG, target.name(), settings.quiet());
-            if (target.mode() == BuildMode.SOURCES && settings.platformDependencyCheck() != CheckPolicy.OFF) {
+            if (target.mode() == BuildMode.SOURCES && settings.platformDependencyCheck() != CheckPolicy.OFF
+                    && settings.host() != null) {
                 List<String> mismatches = PlatformDependencies.mismatches(sources.directory().resolve("lib"),
                         settings.host(), target.platform(), settings.ignoredPlatformDependencies());
                 if (!mismatches.isEmpty()) {

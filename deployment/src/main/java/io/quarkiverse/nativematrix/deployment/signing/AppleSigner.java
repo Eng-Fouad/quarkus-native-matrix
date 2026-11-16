@@ -14,6 +14,7 @@ import io.quarkiverse.nativematrix.spi.BuildLog;
 import io.quarkiverse.nativematrix.spi.NativeBuildException;
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.support.Processes;
+import io.smallrye.common.os.OS;
 
 /**
  * Signs (and optionally notarizes) macOS executables with
@@ -40,7 +41,7 @@ public record AppleSigner(List<String> command, String p12File, Optional<String>
 
     @Override
     public boolean appliesTo(Platform platform) {
-        return platform.os() == Platform.Os.MACOS;
+        return platform.os() == OS.MAC;
     }
 
     @Override

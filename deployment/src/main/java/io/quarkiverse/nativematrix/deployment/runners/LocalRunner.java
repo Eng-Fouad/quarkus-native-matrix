@@ -38,12 +38,12 @@ public class LocalRunner implements NativeBuildRunner {
 
     @Override
     public String description() {
-        return "local (" + Platform.host() + ")";
+        return "local (" + Platform.tryHost().map(Platform::id).orElse("unsupported build machine") + ")";
     }
 
     @Override
     public boolean supports(Platform platform) {
-        return platform.equals(Platform.host());
+        return Platform.tryHost().map(platform::equals).orElse(false);
     }
 
     @Override

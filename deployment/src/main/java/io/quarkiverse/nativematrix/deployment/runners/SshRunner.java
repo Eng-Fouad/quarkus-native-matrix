@@ -16,9 +16,9 @@ import io.quarkiverse.nativematrix.spi.NativeBuildException;
 import io.quarkiverse.nativematrix.spi.NativeBuildRequest;
 import io.quarkiverse.nativematrix.spi.NativeBuildResult;
 import io.quarkiverse.nativematrix.spi.NativeBuildRunner;
-import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.RunnerOptions;
 import io.quarkiverse.nativematrix.spi.support.ArgFile;
+import io.smallrye.common.os.OS;
 
 /**
  * Runs {@code native-image} on any machine reachable over SSH: Linux, macOS, or Windows with OpenSSH. Nothing has to be
@@ -114,7 +114,7 @@ public class SshRunner implements NativeBuildRunner {
         RunnerOptions o = request.options();
         BuildLog log = context.log();
         String host = o.require("host");
-        boolean windows = request.platform().os() == Platform.Os.WINDOWS;
+        boolean windows = request.platform().os() == OS.WINDOWS;
         boolean openssh = useOpenSsh(o);
         String remoteDir = remoteDirectory(request);
         // the OpenSSH client copies directories with scp -r, which needs a destination that does not exist yet

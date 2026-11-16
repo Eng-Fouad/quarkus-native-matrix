@@ -11,20 +11,45 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import io.quarkiverse.nativematrix.spi.support.ArgFile;
+import io.smallrye.common.cpu.CPU;
+import io.smallrye.common.os.OS;
 
 class SpiTest {
 
     @Test
     void parsesPlatforms() {
-        assertThat(Platform.parse("linux-amd64")).isEqualTo(new Platform(Platform.Os.LINUX, Platform.Arch.AMD64));
-        assertThat(Platform.parse("darwin/aarch64")).isEqualTo(new Platform(Platform.Os.MACOS, Platform.Arch.ARM64));
-        assertThat(Platform.parse("windows_x86_64")).isEqualTo(new Platform(Platform.Os.WINDOWS, Platform.Arch.AMD64));
+        assertThat(Platform.parse("linux-amd64")).isEqualTo(new Platform(OS.LINUX, CPU.x64));
+        assertThat(Platform.parse("darwin/aarch64")).isEqualTo(new Platform(OS.MAC, CPU.aarch64));
+        assertThat(Platform.parse("windows_x86_64")).isEqualTo(new Platform(OS.WINDOWS, CPU.x64));
         assertThat(Platform.parse("macos-arm64").id()).isEqualTo("macos-arm64");
         assertThat(Platform.parse("linux-arm64").containerPlatform()).isEqualTo("linux/arm64");
         assertThat(Platform.parse("windows-arm64").executableName("app")).isEqualTo("app.exe");
         assertThat(Platform.tryParse("my-raspberry-pi")).isEmpty();
         assertThatThrownBy(() -> Platform.parse("solaris-sparc")).isInstanceOf(IllegalArgumentException.class);
         assertThat(Platform.host()).isNotNull();
+    }
+
+    @Test
+    void wrapsTheSmallRyeTypes() {
+        // the build machine is detected by SmallRye Common, like Quarkus does
+        assertThat(Platform.host()).isEqualTo(new Platform(OS.current(), CPU.host()));
+        assertThat(Platform.tryHost()).contains(Platform.host());
+        // CPU aliases from SmallRye, plus the spellings of Maven classifiers
+        assertThat(Platform.parseCpu("amd64")).contains(CPU.x64);
+        assertThat(Platform.parseCpu("x86_64")).contains(CPU.x64);
+        assertThat(Platform.parseCpu("x86-64")).contains(CPU.x64);
+        assertThat(Platform.parseCpu("arm64")).contains(CPU.aarch64);
+        assertThat(Platform.parseCpu("aarch_64")).contains(CPU.aarch64);
+        assertThat(Platform.parseCpu("s390")).isEmpty(); // known to SmallRye, not a native-image target here
+        assertThat(Platform.parseOs("osx")).contains(OS.MAC);
+        assertThat(Platform.parseOs("aix")).isEmpty();
+        assertThat(Platform.parse("macos-arm64").osId()).isEqualTo("macos");
+        assertThat(Platform.parse("linux-amd64").cpuId()).isEqualTo("amd64");
+        assertThat(Platform.parse("linux-amd64").isPosix()).isTrue();
+        assertThat(Platform.parse("windows-amd64").isWindows()).isTrue();
+        // only the six supported combinations can be created
+        assertThatThrownBy(() -> new Platform(OS.Z, CPU.x64)).hasMessageContaining("Unsupported platform");
+        assertThatThrownBy(() -> new Platform(OS.LINUX, CPU.riscv)).hasMessageContaining("Unsupported platform");
     }
 
     @Test
