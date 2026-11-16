@@ -288,7 +288,7 @@ public class Ec2Runner implements NativeBuildRunner {
 
     @Override
     public boolean supports(Platform platform) {
-        return platform.os() == Platform.Os.LINUX;
+        return platform.os() == OS.LINUX; // io.smallrye.common.os.OS
     }
 
     @Override

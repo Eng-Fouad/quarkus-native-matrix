@@ -20,6 +20,8 @@ import io.quarkiverse.nativematrix.spi.NativeBuildResult;
 import io.quarkiverse.nativematrix.spi.NativeBuildRunner;
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.RunnerOptions;
+import io.smallrye.common.cpu.CPU;
+import io.smallrye.common.os.OS;
 
 class OrchestratorTest {
 
@@ -35,8 +37,8 @@ class OrchestratorTest {
 
         @Override
         public boolean supports(Platform platform) {
-            return platform.arch() == Platform.Arch.ARM64 || platform.os() == Platform.Os.WINDOWS
-                    || platform.os() == Platform.Os.LINUX;
+            return platform.cpu() == CPU.aarch64 || platform.os() == OS.WINDOWS
+                    || platform.os() == OS.LINUX;
         }
 
         @Override

@@ -24,6 +24,8 @@ import io.quarkiverse.nativematrix.spi.NativeBuildResult;
 import io.quarkiverse.nativematrix.spi.NativeBuildRunner;
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.RunnerOptions;
+import io.smallrye.common.cpu.CPU;
+import io.smallrye.common.os.OS;
 
 /**
  * Platform dependency check, GraalVM version check, build modes, reuse of unchanged targets and packaging.
@@ -91,16 +93,16 @@ class MatrixFeaturesTest {
     @Test
     void detectsPlatformSpecificJars() {
         assertThat(PlatformDependencies.parse("org.openjfx.javafx-graphics-21.0.2-mac-aarch64.jar")).hasValueSatisfying(j -> {
-            assertThat(j.os()).isEqualTo(Platform.Os.MACOS);
-            assertThat(j.arch()).contains(Platform.Arch.ARM64);
+            assertThat(j.os()).isEqualTo(OS.MAC);
+            assertThat(j.cpu()).contains(CPU.aarch64);
             assertThat(j.group()).isEqualTo("org.openjfx.javafx-graphics-21.0.2");
         });
         assertThat(PlatformDependencies.parse("io.netty.netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar"))
-                .hasValueSatisfying(j -> assertThat(j.arch()).contains(Platform.Arch.AMD64));
+                .hasValueSatisfying(j -> assertThat(j.cpu()).contains(CPU.x64));
         assertThat(PlatformDependencies.parse("io.netty.netty-transport-native-kqueue-4.1.100.Final-osx-aarch_64.jar"))
-                .hasValueSatisfying(j -> assertThat(j.os()).isEqualTo(Platform.Os.MACOS));
+                .hasValueSatisfying(j -> assertThat(j.os()).isEqualTo(OS.MAC));
         assertThat(PlatformDependencies.parse("org.lwjgl.lwjgl-3.3.3-natives-windows.jar"))
-                .hasValueSatisfying(j -> assertThat(j.arch()).isEmpty());
+                .hasValueSatisfying(j -> assertThat(j.cpu()).isEmpty());
         assertThat(PlatformDependencies.parse("com.example.linux-utils-1.0.jar")).isEmpty();
         assertThat(PlatformDependencies.parse("io.quarkus.quarkus-core-3.40.1.jar")).isEmpty();
     }

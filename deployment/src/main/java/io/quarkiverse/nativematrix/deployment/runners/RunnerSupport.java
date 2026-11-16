@@ -33,7 +33,7 @@ final class RunnerSupport {
                             : "; found: " + found.stream()
                                     .map(p -> out.relativize(p).toString()).toList()));
         }
-        if (request.platform().os().isPosix()) {
+        if (request.platform().isPosix()) {
             FileTrees.makeExecutable(executable);
         }
         List<Path> others = new ArrayList<>();

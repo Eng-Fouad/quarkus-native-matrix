@@ -24,7 +24,7 @@ public class Ec2Runner implements NativeBuildRunner {
 
     @Override
     public boolean supports(Platform platform) {
-        return platform.os() == Platform.Os.LINUX;
+        return platform.os() == OS.LINUX; // io.smallrye.common.os.OS
     }
 
     @Override
@@ -78,6 +78,11 @@ directory; the timeout.
 A logger prefixing lines with the target name, a private work directory, the GraalVM version check
 (`reportNativeImageVersion`), and cancellation. The build thread is interrupted on timeout and on fail-fast, so clean
 up remote resources in `finally` blocks.
+
+`Platform`::
+One of the six supported OS/CPU combinations. `os()` and `cpu()` are the `io.smallrye.common.os.OS` and
+`io.smallrye.common.cpu.CPU` types also used by Quarkus, so `platform.os() == OS.MAC`; `id()`, `osId()` and `cpuId()`
+give the names used in the configuration (`macos-arm64`, `macos`, `arm64`).
 
 `FullBuild`::
 The project to ship (`stage`, `zip`, honoring the excluded directories, the shipped SNAPSHOTs and the line endings of

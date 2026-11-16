@@ -8,6 +8,7 @@ import java.util.Optional;
 import io.quarkiverse.nativematrix.spi.BuildLog;
 import io.quarkiverse.nativematrix.spi.NativeBuildException;
 import io.quarkiverse.nativematrix.spi.Platform;
+import io.smallrye.common.os.OS;
 import net.jsign.DigestAlgorithm;
 import net.jsign.KeyStoreBuilder;
 import net.jsign.Signable;
@@ -40,7 +41,7 @@ public record AuthenticodeSigner(String keystore, String storetype, Optional<Str
 
     @Override
     public boolean appliesTo(Platform platform) {
-        return platform.os() == Platform.Os.WINDOWS;
+        return platform.os() == OS.WINDOWS;
     }
 
     @Override

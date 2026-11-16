@@ -17,6 +17,7 @@ import io.quarkiverse.nativematrix.deployment.orchestrator.NativeSources;
 import io.quarkiverse.nativematrix.spi.NativeBuildRequest;
 import io.quarkiverse.nativematrix.spi.Platform;
 import io.quarkiverse.nativematrix.spi.RunnerOptions;
+import io.smallrye.common.os.OS;
 
 class LocalRunnerTest {
 
@@ -65,8 +66,8 @@ class LocalRunnerTest {
     void onlySupportsTheHostPlatform() {
         LocalRunner runner = new LocalRunner();
         assertThat(runner.supports(Platform.host())).isTrue();
-        Platform other = new Platform(Platform.host().os() == Platform.Os.LINUX ? Platform.Os.WINDOWS : Platform.Os.LINUX,
-                Platform.host().arch());
+        Platform other = new Platform(Platform.host().os() == OS.LINUX ? OS.WINDOWS : OS.LINUX,
+                Platform.host().cpu());
         assertThat(runner.supports(other)).isFalse();
     }
 }

@@ -38,6 +38,7 @@ import io.quarkus.deployment.pkg.builditem.CurateOutcomeBuildItem;
 import io.quarkus.deployment.pkg.steps.NativeSourcesBuild;
 import io.quarkus.deployment.sbom.SbomBuildItem;
 import io.quarkus.maven.dependency.ResolvedDependency;
+import io.smallrye.common.os.OS;
 
 class NativeMatrixProcessor {
 
@@ -70,7 +71,7 @@ class NativeMatrixProcessor {
             LOG.warn("No native sources were produced, skipping the native matrix");
             return;
         }
-        List<MatrixTarget> targets = resolveTargets(config, Platform.host());
+        List<MatrixTarget> targets = resolveTargets(config, Platform.tryHost().orElse(null));
         if (targets.isEmpty()) {
             LOG.info("All native matrix targets are disabled or filtered out");
             return;
@@ -86,7 +87,7 @@ class NativeMatrixProcessor {
             NativeMatrixOrchestrator orchestrator = new NativeMatrixOrchestrator(RunnerRegistry.discover(),
                     new NativeMatrixOrchestrator.Settings(matrixDir,
                             config.parallelism().orElse(targets.size()), config.failFast(),
-                            config.keepWorkDirectories(), config.quiet(), Platform.host(),
+                            config.keepWorkDirectories(), config.quiet(), Platform.tryHost().orElse(null),
                             policy(config.platformDependencyCheck()),
                             config.ignoredPlatformDependencies().orElse(List.of()),
                             policy(config.graalvmVersionCheck()), config.reuseUnchanged(), signers));
@@ -166,7 +167,7 @@ class NativeMatrixProcessor {
     static List<ExecutableSigner> signers(NativeMatrixConfig.SigningConfig signing, List<MatrixTarget> targets) {
         List<ExecutableSigner> signers = new ArrayList<>();
         NativeMatrixConfig.WindowsSigningConfig w = signing.windows();
-        boolean windows = targets.stream().anyMatch(t -> t.platform().os() == Platform.Os.WINDOWS);
+        boolean windows = targets.stream().anyMatch(t -> t.platform().os() == OS.WINDOWS);
         if (w.keystore().isPresent() && windows) {
             AuthenticodeSigner signer = new AuthenticodeSigner(w.keystore().get(), w.storetype(), w.storepass(),
                     w.alias(), w.keypass(), w.certfile(), w.timestamp(), w.tsaurl(), w.programName(), w.programUrl());
@@ -179,7 +180,7 @@ class NativeMatrixProcessor {
             signers.add(signer);
         }
         NativeMatrixConfig.MacosSigningConfig m = signing.macos();
-        boolean macos = targets.stream().anyMatch(t -> t.platform().os() == Platform.Os.MACOS);
+        boolean macos = targets.stream().anyMatch(t -> t.platform().os() == OS.MAC);
         if (m.p12File().isPresent() && macos) {
             AppleSigner signer = new AppleSigner(m.command(), m.p12File().get(), m.p12Password(), m.entitlements(),
                     m.notarize(), m.apiKeyFile());
