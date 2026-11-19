@@ -54,7 +54,7 @@ class DockerRunnerIT {
                 BuildLog.console("docker-build"));
         assertThat(built.exitCode()).isZero();
 
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         NativeBuildRequest request = NativeBuildRequest.builder()
                 .buildId("it").targetName("linux-amd64").platform(Platform.parse("linux-amd64"))
                 .nativeSourcesDirectory(sources.directory()).outputName(sources.outputName())

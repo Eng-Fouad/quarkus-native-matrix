@@ -61,11 +61,11 @@ class PathRelocatorTest {
 
     @Test
     void runnersReceivePortableArguments() throws Exception {
-        Path sources = TestSupport.nativeSources(tmp);
         Path agent = Files.createDirectories(tmp.resolve("agent"));
-        Files.writeString(sources.resolve("native-image.args"),
-                "-H:ConfigurationFileDirectories=" + agent.toAbsolutePath().toString().replace('\\', '/')
-                        + " -o app-runner -jar app-runner.jar");
+        NativeSources nativeSources = TestSupport.sources(tmp, List.of(
+                "-H:ConfigurationFileDirectories=" + agent.toAbsolutePath().toString().replace('\\', '/'),
+                "-o", "app-runner", "-jar", "app-runner.jar"));
+        Path sources = nativeSources.directory();
         List<List<String>> seen = new ArrayList<>();
         NativeBuildRunner recording = new NativeBuildRunner() {
             @Override
@@ -83,7 +83,7 @@ class PathRelocatorTest {
         };
         new NativeMatrixOrchestrator(new RunnerRegistry(List.of(recording)),
                 new NativeMatrixOrchestrator.Settings(tmp.resolve("out"), 1, false, false, false))
-                .run(NativeSources.read(sources), List.of(new MatrixTarget("linux-arm64", Platform.parse("linux-arm64"),
+                .run(nativeSources, List.of(new MatrixTarget("linux-arm64", Platform.parse("linux-arm64"),
                         "rec", RunnerOptions.empty(), Duration.ofSeconds(10))));
         assertThat(seen.get(0)).contains("-H:ConfigurationFileDirectories=native-matrix-extra/1/agent");
 

@@ -182,7 +182,7 @@ class SshRunnerTest {
     }
 
     private NativeBuildRequest request(String client, Map<String, String> extraOptions) throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         var options = new HashMap<>(Map.of(
                 "client", client,
                 "host", "127.0.0.1",

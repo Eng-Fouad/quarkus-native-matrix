@@ -81,13 +81,14 @@ class MatrixFeaturesTest {
     }
 
     private NativeSources sourcesWithJavaFxForWindows() throws Exception {
-        Path dir = TestSupport.nativeSources(tmp);
+        NativeSources sources = TestSupport.sources(tmp);
+        Path dir = sources.directory();
         Files.writeString(dir.resolve("lib/main/org.openjfx.javafx-graphics-25-win.jar"), "fx");
         Files.writeString(dir.resolve("lib/main/org.openjfx.javafx-base-25-win.jar"), "fx");
         // bundled on purpose for several platforms: never a problem
         Files.writeString(dir.resolve("lib/main/org.lwjgl.lwjgl-3.3.3-natives-windows.jar"), "x");
         Files.writeString(dir.resolve("lib/main/org.lwjgl.lwjgl-3.3.3-natives-linux.jar"), "x");
-        return NativeSources.read(dir);
+        return sources;
     }
 
     @Test
@@ -145,7 +146,7 @@ class MatrixFeaturesTest {
     @Test
     void rejectsModesARunnerDoesNotSupport() throws Exception {
         runner.full = false;
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         FullBuild fullBuild = new FullBuild(tmp, "a", "b", "target", Set.of());
         assertThatThrownBy(() -> orchestrator(CheckPolicy.FAIL, CheckPolicy.WARN, false, List.of())
                 .run(sources, List.of(target(LINUX, BuildMode.FULL)), fullBuild))
@@ -158,7 +159,7 @@ class MatrixFeaturesTest {
 
     @Test
     void checksTheGraalVmVersionOfBuilders() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp)); // graalvm.version = 25.0
+        NativeSources sources = TestSupport.sources(tmp); // graalvm.version = 25.0
         var ok = orchestrator(CheckPolicy.FAIL, CheckPolicy.FAIL, false, List.of())
                 .run(sources, List.of(target(LINUX, BuildMode.SOURCES)));
         assertThat(ok.succeeded()).isTrue();
@@ -178,7 +179,7 @@ class MatrixFeaturesTest {
 
     @Test
     void reusesUnchangedTargets() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         List<MatrixTarget> targets = List.of(target(LINUX, BuildMode.SOURCES), target(MAC_ARM, BuildMode.SOURCES));
         assertThat(orchestrator(CheckPolicy.FAIL, CheckPolicy.WARN, true, List.of()).run(sources, targets).succeeded())
                 .isTrue();
@@ -204,7 +205,7 @@ class MatrixFeaturesTest {
 
     @Test
     void packagesArchivesAndAJReleaserConfiguration() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         var result = orchestrator(CheckPolicy.FAIL, CheckPolicy.WARN, false, List.of())
                 .run(sources, List.of(target(LINUX, BuildMode.SOURCES), target(WINDOWS, BuildMode.SOURCES)));
         Path matrix = tmp.resolve("out");

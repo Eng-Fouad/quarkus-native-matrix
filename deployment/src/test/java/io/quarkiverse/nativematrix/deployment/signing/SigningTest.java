@@ -167,7 +167,7 @@ class SigningTest {
                 Files.writeString(executable, "signed");
             }
         };
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         List<MatrixTarget> targets = List.of(
                 new MatrixTarget("windows-amd64", Platform.parse("windows-amd64"), "fake", RunnerOptions.empty(),
                         Duration.ofSeconds(10)),

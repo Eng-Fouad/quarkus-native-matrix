@@ -35,8 +35,8 @@ import io.quarkus.deployment.pkg.NativeConfig;
 import io.quarkus.deployment.pkg.builditem.ArtifactResultBuildItem;
 import io.quarkus.deployment.pkg.builditem.BuildSystemTargetBuildItem;
 import io.quarkus.deployment.pkg.builditem.CurateOutcomeBuildItem;
+import io.quarkus.deployment.pkg.builditem.NativeImageSourcesBuildItem;
 import io.quarkus.deployment.pkg.steps.NativeSourcesBuild;
-import io.quarkus.deployment.sbom.SbomBuildItem;
 import io.quarkus.maven.dependency.ResolvedDependency;
 import io.smallrye.common.os.OS;
 
@@ -44,7 +44,6 @@ class NativeMatrixProcessor {
 
     private static final Logger LOG = Logger.getLogger(NativeMatrixProcessor.class);
     static final String FEATURE = "native-matrix";
-    static final String NATIVE_SOURCES_ARTIFACT_TYPE = "native-sources";
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -52,22 +51,20 @@ class NativeMatrixProcessor {
     }
 
     /**
-     * Runs once Quarkus has written {@code target/native-sources}.
+     * Runs once Quarkus has written {@code target/native-sources}, which {@link NativeImageSourcesBuildItem} describes.
      * <p>
-     * Quarkus writes the native sources in the step producing the {@code native-sources} {@link ArtifactResultBuildItem}.
-     * Consuming all {@link ArtifactResultBuildItem}s orders this step after it, but this step cannot produce one itself
-     * (that would be a cycle). It declares {@link SbomBuildItem} instead, the other multi build item requested at the end
-     * of every production build, so that the build chain always executes it - exactly like SBOM generators, which also
-     * run after all the artifacts were produced. No SBOM is actually produced.
+     * This step produces no build item that anything consumes, so it declares {@link ArtifactResultBuildItem}, which is
+     * requested at the end of every production build: that way the build chain always executes it. No artifact is
+     * actually produced.
      */
     @BuildStep(onlyIf = NativeSourcesBuild.class)
-    @Produce(SbomBuildItem.class)
+    @Produce(ArtifactResultBuildItem.class)
     void buildMatrix(NativeMatrixConfig config, BuildSystemTargetBuildItem buildSystemTarget,
-            List<ArtifactResultBuildItem> artifacts, CurateOutcomeBuildItem curateOutcome) {
+            NativeImageSourcesBuildItem nativeImageSources, CurateOutcomeBuildItem curateOutcome) {
         if (!config.enabled() || config.target().isEmpty()) {
             return;
         }
-        if (artifacts.stream().noneMatch(a -> NATIVE_SOURCES_ARTIFACT_TYPE.equals(a.getType()))) {
+        if (nativeImageSources == null) {
             LOG.warn("No native sources were produced, skipping the native matrix");
             return;
         }
@@ -78,7 +75,7 @@ class NativeMatrixProcessor {
         }
         Path outputDir = buildSystemTarget.getOutputDirectory();
         try {
-            NativeSources sources = NativeSources.read(outputDir.resolve("native-sources"));
+            NativeSources sources = NativeSources.of(nativeImageSources);
             FullBuild fullBuild = targets.stream().anyMatch(t -> t.mode() == BuildMode.FULL)
                     ? planFullBuild(config, outputDir, dependencies(curateOutcome))
                     : null;
@@ -116,7 +113,7 @@ class NativeMatrixProcessor {
     }
 
     @BuildStep(onlyIfNot = NativeSourcesBuild.class)
-    @Produce(SbomBuildItem.class)
+    @Produce(ArtifactResultBuildItem.class)
     void warnWhenNotSourcesOnly(NativeConfig nativeConfig, NativeMatrixConfig config) {
         if (nativeConfig.enabled() && config.enabled() && !config.target().isEmpty()) {
             LOG.warn("Native matrix targets are configured but quarkus.native.sources-only is not enabled: only the"

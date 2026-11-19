@@ -25,7 +25,7 @@ class LocalRunnerTest {
     Path tmp;
 
     private NativeBuildRequest request(List<String> extraArgs) throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         List<String> args = new ArrayList<>(extraArgs);
         args.addAll(sources.args());
         return NativeBuildRequest.builder()

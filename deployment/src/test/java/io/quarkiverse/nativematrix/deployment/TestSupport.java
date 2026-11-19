@@ -5,15 +5,19 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
+import io.quarkiverse.nativematrix.deployment.orchestrator.NativeSources;
 import io.quarkiverse.nativematrix.spi.BuildContext;
 import io.quarkiverse.nativematrix.spi.BuildLog;
+import io.quarkus.deployment.pkg.builditem.NativeImageSourcesBuildItem;
 
 public final class TestSupport {
 
     /** The arguments Quarkus would write, including one with regex characters. */
-    public static final String ARGS = "-J-Dfile.encoding=UTF-8 --enable-monitoring=heapdump,threaddump"
-            + " --exclude-config \\Qio.netty\\E ^/META-INF/native-image/.* -o app-runner -jar app-runner.jar";
+    public static final List<String> ARGS = List.of("-J-Dfile.encoding=UTF-8",
+            "--enable-monitoring=heapdump,threaddump", "--exclude-config", "\\Qio.netty\\E", "^/META-INF/native-image/.*",
+            "-o", "app-runner", "-jar", "app-runner.jar");
 
     private TestSupport() {
     }
@@ -23,12 +27,23 @@ public final class TestSupport {
      */
     public static Path nativeSources(Path root) throws IOException {
         Path dir = Files.createDirectories(root.resolve("native-sources"));
-        Files.writeString(dir.resolve("native-image.args"), ARGS);
-        Files.writeString(dir.resolve("graalvm.version"), "25.0");
         Files.writeString(dir.resolve("app-runner.jar"), "jar");
         Files.createDirectories(dir.resolve("lib/main"));
         Files.writeString(dir.resolve("lib/main/dep.jar"), "dep");
         return dir;
+    }
+
+    /**
+     * Creates a fake {@code target/native-sources} directory and describes it like Quarkus does with
+     * {@link NativeImageSourcesBuildItem}.
+     */
+    public static NativeSources sources(Path root) throws IOException {
+        return sources(root, ARGS);
+    }
+
+    public static NativeSources sources(Path root, List<String> args) throws IOException {
+        return NativeSources.of(new NativeImageSourcesBuildItem(nativeSources(root), "app-runner.jar", "app-runner",
+                args, "25.0", Optional.empty()));
     }
 
     /**

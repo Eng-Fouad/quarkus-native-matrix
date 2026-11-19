@@ -28,9 +28,9 @@
     </scm>
 
     <properties>
-        <maven.compiler.release>17</maven.compiler.release>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <quarkus.version>3.40.1</quarkus.version>
+        <quarkus.version>4.0.0</quarkus.version>
         <sshd.version>2.20.0</sshd.version>
         <assertj.version>3.27.7</assertj.version>
         <bouncycastle-lts.version>2.73.13</bouncycastle-lts.version>
@@ -106,15 +106,13 @@
 
     <profiles>
         <profile>
-            <!-- not released: the documentation is published from the repository by docs.quarkiverse.io.
-                 Needs JDK 21+: quarkus-config-doc-maven-plugin is compiled for Java 21 (the extension supports 17). -->
+            <!-- not released: the documentation is published from the repository by docs.quarkiverse.io -->
             <id>unreleased-modules</id>
             <activation>
                 <property>
                     <name>performRelease</name>
                     <value>!true</value>
                 </property>
-                <jdk>[21,)</jdk>
             </activation>
             <modules>
                 <module>docs</module>
