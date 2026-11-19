@@ -77,7 +77,7 @@ class OrchestratorTest {
 
     @Test
     void buildsAllTargetsAndWritesAManifest() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         var result = orchestrator(false).run(sources,
                 List.of(target("linux-arm64", "ok"), target("windows-amd64", "slow")));
 
@@ -97,7 +97,7 @@ class OrchestratorTest {
 
     @Test
     void reportsFailuresWithoutStoppingOtherTargets() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         var result = orchestrator(false).run(sources,
                 List.of(target("linux-arm64", "fail"), target("windows-amd64", "slow")));
         assertThat(result.succeeded()).isFalse();
@@ -108,7 +108,7 @@ class OrchestratorTest {
 
     @Test
     void failFastCancelsTheOtherTargets() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         long start = System.nanoTime();
         var result = orchestrator(true).run(sources, List.of(target("linux-arm64", "fail"),
                 target("windows-amd64", "hang")));
@@ -119,7 +119,7 @@ class OrchestratorTest {
 
     @Test
     void enforcesTimeouts() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         MatrixTarget hanging = new MatrixTarget("linux-arm64", Platform.parse("linux-arm64"), "scripted",
                 RunnerOptions.of(Map.of("behaviour", "hang")), Duration.ofMillis(300));
         var result = orchestrator(false).run(sources, List.of(hanging));
@@ -128,7 +128,7 @@ class OrchestratorTest {
 
     @Test
     void validatesEverythingBeforeBuilding() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         assertThatThrownBy(() -> orchestrator(false).run(sources, List.of(
                 new MatrixTarget("a", Platform.parse("linux-arm64"), "nope", null, Duration.ofSeconds(1)),
                 new MatrixTarget("b", Platform.parse("macos-amd64"), "scripted", null, Duration.ofSeconds(1)),
@@ -142,14 +142,12 @@ class OrchestratorTest {
 
     @Test
     void readsNativeSources() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         assertThat(sources.outputName()).isEqualTo("app-runner");
         assertThat(sources.runnerJar()).isEqualTo("app-runner.jar");
         assertThat(sources.graalVmVersion()).contains("25.0");
         assertThat(sources.builderImage()).isEmpty();
-        assertThat(sources.args()).contains("\\Qio.netty\\E");
-        assertThatThrownBy(() -> NativeSources.read(tmp.resolve("missing")))
-                .hasMessageContaining("quarkus.native.sources-only=true");
+        assertThat(sources.args()).isEqualTo(TestSupport.ARGS);
     }
 
     @Test

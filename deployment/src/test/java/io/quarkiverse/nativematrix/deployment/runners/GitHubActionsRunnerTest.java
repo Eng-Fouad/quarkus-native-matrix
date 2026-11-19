@@ -153,7 +153,7 @@ class GitHubActionsRunnerTest {
     }
 
     private NativeBuildRequest request() throws Exception {
-        NativeSources sources = NativeSources.read(TestSupport.nativeSources(tmp));
+        NativeSources sources = TestSupport.sources(tmp);
         return NativeBuildRequest.builder()
                 .buildId("b1").targetName("linux-arm64").platform(Platform.parse("linux-arm64"))
                 .nativeSourcesDirectory(sources.directory()).outputName(sources.outputName())

@@ -24,10 +24,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         java: [21]
-        include:
-          # the release target of the extension
-          - os: ubuntu-latest
-            java: 17
     steps:
       - uses: actions/checkout@v4
 

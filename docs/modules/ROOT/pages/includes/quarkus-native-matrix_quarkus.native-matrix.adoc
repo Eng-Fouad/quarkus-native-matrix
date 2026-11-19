@@ -755,7 +755,7 @@ endif::add-copy-button-to-config-props[]
 
 [.description]
 --
-The key store password, or the credentials of a cloud key store. Use an expression such as `$++{++SIGNING_STOREPASS`++}++.
+The key store password, or the credentials of a cloud key store. Use an expression such as `$++{++SIGNING_STOREPASS++}++`.
 
 
 ifdef::add-copy-button-to-env-var[]
@@ -944,7 +944,7 @@ endif::add-copy-button-to-config-props[]
 
 [.description]
 --
-The password of the PKCS++#++12 file. Use an expression such as `$++{++APPLE_P12_PASSWORD`++}++.
+The password of the PKCS++#++12 file. Use an expression such as `$++{++APPLE_P12_PASSWORD++}++`.
 
 
 ifdef::add-copy-button-to-env-var[]
